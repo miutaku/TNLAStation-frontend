@@ -92,6 +92,9 @@ npm run build
 - Vitest では、型付き fixture を使った各 API path・検索 body、API クライアントのクエリ生成／エラー変換、表示設定の復元、日時・時間・ファイルサイズ・進捗などの表示ユーティリティを検証する
 - GitHub Actions でも Node.js 24 を使い、lockfile install、依存監査、lint、型検査、テスト、本番ビルド、Docker image build を順に実行する
 
+リリース方法は [RELEASING.md](RELEASING.md)、開発への参加方法は
+[CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
+
 ---
 
 ## API 接続
