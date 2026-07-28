@@ -37,7 +37,8 @@
     "vitest": "3.2.7"
   },
   "overrides": {
-    "postcss": "8.5.10",
+    "postcss": "8.5.18",
+    "tar": "7.5.21",
     "sharp": "0.35.3"
   }
 }
