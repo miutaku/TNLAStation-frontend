@@ -3,7 +3,8 @@
 FROM node:24-alpine AS dependencies
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install --global npm@11.6.2 \
+    && npm ci
 
 FROM node:24-alpine AS builder
 WORKDIR /app
