@@ -90,6 +90,8 @@ function toNumber(value: string): number | undefined {
 }
 
 export function searchConditionsToOption(conditions: SearchConditions): RuleSearchOptions {
+  const hasKeyword = conditions.keyword.trim() !== "";
+  const hasIgnoreKeyword = conditions.ignoreKeyword.trim() !== "";
   const week = toWeekBitmask(conditions.weekdays);
   const startHour = toNumber(conditions.startHour);
   const rangeHours = toNumber(conditions.rangeHours);
@@ -101,14 +103,14 @@ export function searchConditionsToOption(conditions: SearchConditions): RuleSear
   return {
     keyword: conditions.keyword.trim() || undefined,
     ignoreKeyword: conditions.ignoreKeyword.trim() || undefined,
-    keyCS: conditions.keyCS,
-    keyRegExp: conditions.keyRegExp,
-    name: conditions.name,
-    description: conditions.description,
-    extended: conditions.extended,
-    ignoreName: conditions.ignoreName,
-    ignoreDescription: conditions.ignoreDescription,
-    ignoreExtended: conditions.ignoreExtended,
+    keyCS: hasKeyword && conditions.keyCS,
+    keyRegExp: hasKeyword && conditions.keyRegExp,
+    name: hasKeyword && conditions.name,
+    description: hasKeyword && conditions.description,
+    extended: hasKeyword && conditions.extended,
+    ignoreName: hasIgnoreKeyword && conditions.ignoreName,
+    ignoreDescription: hasIgnoreKeyword && conditions.ignoreDescription,
+    ignoreExtended: hasIgnoreKeyword && conditions.ignoreExtended,
     GR: conditions.broadcasts.GR,
     BS: conditions.broadcasts.BS,
     CS: conditions.broadcasts.CS,

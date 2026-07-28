@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Clock, Folder, Plus, Radio, RefreshCw, ShieldAlert } from "lucide-react";
+import { CalendarClock, Clock, Folder, Pencil, Plus, Radio, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo, useState, type FormEvent } from "react";
 
@@ -28,6 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Table,
   TableBody,
@@ -61,6 +62,7 @@ const reserveTableColumns = [
   { key: "method", label: "予約方法" },
   { key: "destination", label: "保存先" },
   { key: "id", label: "ID" },
+  { key: "actions", label: "操作" },
 ] as const;
 type ReserveTableColumn = (typeof reserveTableColumns)[number]["key"];
 
@@ -82,7 +84,30 @@ function ReserveStatuses({ reserve }: { reserve: ReserveItem }) {
   );
 }
 
-function ReserveCard({ reserve, viewMode }: { reserve: ReserveItem; viewMode: CollectionViewMode }) {
+function ReserveActions({ reserve, onDelete }: { reserve: ReserveItem; onDelete: (reserve: ReserveItem) => void }) {
+  return (
+    <div className="flex flex-wrap justify-end gap-2">
+      <Button asChild size="sm" variant="outline">
+        <Link href={`/reserves/${reserve.id}/edit`} aria-label={`${reserve.name}を編集`}>
+          <Pencil aria-hidden="true" />編集
+        </Link>
+      </Button>
+      <Button type="button" size="sm" variant="destructive" onClick={() => onDelete(reserve)} aria-label={`${reserve.name}を削除`}>
+        <Trash2 aria-hidden="true" />削除
+      </Button>
+    </div>
+  );
+}
+
+function ReserveCard({
+  reserve,
+  viewMode,
+  onDelete,
+}: {
+  reserve: ReserveItem;
+  viewMode: CollectionViewMode;
+  onDelete: (reserve: ReserveItem) => void;
+}) {
   const channelName = useChannelNames();
   return (
     <Card className={viewMode === "list" ? "rounded-lg shadow-none transition-colors hover:bg-muted/35" : "transition-shadow hover:shadow-md"}>
@@ -131,6 +156,9 @@ function ReserveCard({ reserve, viewMode }: { reserve: ReserveItem; viewMode: Co
               <dd>{reserveMethodLabel(reserve)}</dd>
             </div>
           </dl>
+          <div className="mt-4 border-t pt-4">
+            <ReserveActions reserve={reserve} onDelete={onDelete} />
+          </div>
         </article>
       </CardContent>
     </Card>
@@ -144,9 +172,11 @@ const reserveHeaderClassName: Partial<Record<ReserveTableColumn, string>> = {
 function ReserveTable({
   reserves,
   columns,
+  onDelete,
 }: {
   reserves: ReserveItem[];
   columns: TableColumnVisibilityState<ReserveTableColumn>;
+  onDelete: (reserve: ReserveItem) => void;
 }) {
   const channelName = useChannelNames();
   const visibleColumns = columns.columns.filter((column) => columns.isVisible(column.key));
@@ -184,6 +214,8 @@ function ReserveTable({
         return [reserve.parentDirectoryName, reserve.directory].filter(Boolean).join("/") || "既定の保存先";
       case "id":
         return `#${reserve.id}`;
+      case "actions":
+        return <ReserveActions reserve={reserve} onDelete={onDelete} />;
     }
   };
 
@@ -191,6 +223,7 @@ function ReserveTable({
     program: "max-w-[28rem] whitespace-normal",
     destination: "max-w-56 overflow-hidden text-ellipsis",
     id: "text-right text-muted-foreground",
+    actions: "text-right",
   };
 
   return (
@@ -225,6 +258,9 @@ export function ReservesView() {
     EMPTY_PROGRAM_COLLECTION_SEARCH,
   );
   const [search, setSearch] = useState<ProgramCollectionSearchValue>(EMPTY_PROGRAM_COLLECTION_SEARCH);
+  const [deleteTarget, setDeleteTarget] = useState<ReserveItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const { preferences } = usePreferences();
   const [viewMode, setViewMode] = useCollectionViewMode("reserves");
   const tableColumns = useTableColumnVisibility("reserves", reserveTableColumns);
@@ -274,6 +310,21 @@ export function ReservesView() {
   };
 
   const hasSearch = hasProgramCollectionQuery(search);
+
+  const deleteReserve = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await apiClient.deleteReserve(deleteTarget.id);
+      setDeleteTarget(null);
+      resource.reload();
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "予約を削除できませんでした。");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <>
@@ -331,6 +382,7 @@ export function ReservesView() {
 
       {resource.isLoading ? <ContentSkeleton cards={5} /> : null}
       {resource.error ? <ErrorState description={resource.error.message} onRetry={resource.reload} /> : null}
+      {actionError ? <ErrorState title="予約を削除できませんでした" description={actionError} /> : null}
       {!resource.isLoading && resource.data?.reserves.length === 0 ? (
         <EmptyState
           title={hasSearch ? "条件に合う予約はありません" : "該当する予約はありません"}
@@ -353,15 +405,24 @@ export function ReservesView() {
             </div>
           ) : null}
           {viewMode === "list" ? (
-            <ReserveTable reserves={resource.data.reserves} columns={tableColumns} />
+            <ReserveTable reserves={resource.data.reserves} columns={tableColumns} onDelete={setDeleteTarget} />
           ) : (
             <div className={collectionLayoutClass(viewMode, "xl:grid-cols-2")} aria-label="予約番組">
-              {resource.data.reserves.map((reserve) => <ReserveCard key={reserve.id} reserve={reserve} viewMode={viewMode} />)}
+              {resource.data.reserves.map((reserve) => <ReserveCard key={reserve.id} reserve={reserve} viewMode={viewMode} onDelete={setDeleteTarget} />)}
             </div>
           )}
           <Pagination page={page} pageSize={preferences.reservesLength} total={resource.data.total} onPageChange={setPage} />
         </>
       ) : null}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="予約を削除しますか？"
+        description={deleteTarget ? `「${deleteTarget.name}」を削除します。ルールから作られた予約は除外予約として残ります。` : ""}
+        confirmLabel="予約を削除"
+        busy={deleting}
+        onConfirm={() => void deleteReserve()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </>
   );
 }

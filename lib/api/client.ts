@@ -6,6 +6,7 @@ import type {
   CreateNewRecordedOptions,
   EncodeId,
   EncodeInfo,
+  EditManualReserveOption,
   GetRecordedOptions,
   GetRuleOptions,
   GetReserveOptions,
@@ -16,6 +17,7 @@ import type {
   RecordedTags,
   Records,
   ReserveId,
+  ReserveItem,
   Rule,
   RuleId,
   Reserves,
@@ -114,7 +116,8 @@ export class EpgStationApiClient {
 
     if (!response.ok) {
       const detail = await readErrorDetail(response);
-      throw new ApiError(`EPGStation API returned ${response.status}`, response.status, endpoint, detail);
+      const message = `TNLAStation API returned ${response.status}${detail ? `: ${detail}` : ""}`;
+      throw new ApiError(message, response.status, endpoint, detail);
     }
 
     return response;
@@ -147,9 +150,21 @@ export class EpgStationApiClient {
     return this.get<Reserves>("/reserves", options as unknown as Query, signal);
   }
 
+  getReserve(reserveId: ReserveId, isHalfWidth: boolean, signal?: AbortSignal): Promise<ReserveItem> {
+    return this.get<ReserveItem>(`/reserves/${reserveId}`, { isHalfWidth }, signal);
+  }
+
   async addManualReserve(options: ManualReserveOption, signal?: AbortSignal): Promise<ReserveId> {
     const result = await this.post<{ reserveId: ReserveId }>("/reserves", options, signal);
     return result.reserveId;
+  }
+
+  updateReserve(reserveId: ReserveId, options: EditManualReserveOption, signal?: AbortSignal): Promise<void> {
+    return this.requestVoid("PUT", `/reserves/${reserveId}`, options, signal);
+  }
+
+  deleteReserve(reserveId: ReserveId, signal?: AbortSignal): Promise<void> {
+    return this.requestVoid("DELETE", `/reserves/${reserveId}`, undefined, signal);
   }
 
   getRecorded(options: GetRecordedOptions, signal?: AbortSignal): Promise<Records> {

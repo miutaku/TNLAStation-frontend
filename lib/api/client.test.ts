@@ -185,6 +185,45 @@ describe("EpgStationApiClient", () => {
     );
   });
 
+  it("gets, updates and deletes a reserve through the reserve endpoints", async () => {
+    const requests: { endpoint: string; method: string; body?: BodyInit | null }[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const endpoint = String(input);
+      requests.push({ endpoint, method: init?.method ?? "GET", body: init?.body });
+      if (endpoint.includes("isHalfWidth")) {
+        return new Response(JSON.stringify({ id: 701, name: "予約" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(null, { status: 200 });
+    });
+    const client = new EpgStationApiClient({ baseUrl: "/api", fetcher });
+
+    await client.getReserve(701, false);
+    await client.updateReserve(701, { allowEndLack: false });
+    await client.deleteReserve(701);
+
+    expect(requests.map(({ endpoint, method }) => `${method} ${endpoint}`)).toEqual([
+      "GET /api/reserves/701?isHalfWidth=false",
+      "PUT /api/reserves/701",
+      "DELETE /api/reserves/701",
+    ]);
+    expect(JSON.parse(String(requests[1]?.body))).toEqual({ allowEndLack: false });
+  });
+
+  it("uses the TNLAStation error label and includes backend detail", async () => {
+    const client = new EpgStationApiClient({
+      baseUrl: "/api",
+      fetcher: async () => new Response(JSON.stringify({ message: "AddRuleError" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+    });
+
+    await expect(client.getConfig()).rejects.toThrow("TNLAStation API returned 500: AddRuleError");
+  });
+
   it("supports recorded detail, protection, deletion and multipart upload", async () => {
     const requests: { endpoint: string; method: string; body?: BodyInit | null }[] = [];
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
