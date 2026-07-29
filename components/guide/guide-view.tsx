@@ -2,7 +2,7 @@
 
 import { CalendarDays, Clock3, Radio, RefreshCw, Settings } from "lucide-react";
 import Link from "next/link";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-state";
 import { ChannelLogo } from "@/components/channel-logo";
@@ -24,8 +24,6 @@ type BroadcastFilter = "ALL" | ChannelType;
 
 const BROADCAST_TYPE_LABELS: Record<ChannelType, string> = { GR: "地デジ", BS: "BS", CS: "CS", SKY: "SKY" };
 const BROADCAST_TYPE_ORDER: readonly ChannelType[] = ["GR", "BS", "CS", "SKY"];
-
-const PIXELS_PER_MINUTE = 3;
 
 const HEADER_HEIGHT = 64;
 
@@ -63,12 +61,14 @@ function jstStartOfDate(value: string): number {
  */
 // 列を数フレームに分けて足すとき、既に置いた列まで描き直すと O(n^2) になって重くなる。
 // memo で、番組表 (schedule) と座標系が同じ列は再描画を省く。
-const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windowMinutes, highlightGenres, onSelectProgram, onSelectChannel }: {
+const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windowMinutes, pixelsPerMinute, highlightGenres, showChannelLogo, onSelectProgram, onSelectChannel }: {
   schedule: Schedule;
   windowStart: number;
   windowMinutes: number;
+  pixelsPerMinute: number;
   /** 目立たせる大分類ジャンル。空なら全番組を通常表示。 */
   highlightGenres: readonly number[];
+  showChannelLogo: boolean;
   onSelectProgram: (program: ScheduleProgramItem, channelName: string) => void;
   onSelectChannel: (channel: Schedule["channel"]) => void;
 }) {
@@ -78,29 +78,42 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
         {/* 局名をタップすると「今すぐ再生」。番組表では放送中の局をすぐ見られるようにする。 */}
         <button
           type="button"
-          className="flex h-16 w-full items-center gap-2.5 px-3 text-left transition-colors hover:bg-muted/60"
+          className={cn(
+            "flex h-16 w-full items-center text-left transition-colors hover:bg-muted/60",
+            showChannelLogo
+              ? "flex-col justify-center gap-0.5 px-1.5 min-[600px]:flex-row min-[600px]:justify-start min-[600px]:gap-2.5 min-[600px]:px-3"
+              : "gap-2.5 px-3",
+          )}
           onClick={() => onSelectChannel(schedule.channel)}
         >
-          <ChannelLogo channel={schedule.channel} className="hidden h-[27px] w-12 min-[600px]:grid" />
-          <div className="min-w-0 flex-1">
-            <h2 id={`channel-${schedule.channel.id}`} className="truncate text-sm leading-5 font-semibold">
+          {showChannelLogo ? (
+            <ChannelLogo channel={schedule.channel} className="w-9 min-[600px]:w-12" />
+          ) : null}
+          <div className={cn("min-w-0 flex-1", showChannelLogo && "w-full text-center min-[600px]:w-auto min-[600px]:text-left")}>
+            <h2
+              id={`channel-${schedule.channel.id}`}
+              className={cn(
+                "line-clamp-2 font-semibold [overflow-wrap:anywhere]",
+                showChannelLogo ? "text-xs leading-4 min-[600px]:text-sm min-[600px]:leading-4" : "text-sm leading-4",
+              )}
+            >
               {schedule.channel.name}
             </h2>
-            <p className="truncate text-xs leading-4 text-muted-foreground">
+            <p className={cn("truncate text-xs leading-4 text-muted-foreground", showChannelLogo && "hidden min-[600px]:block")}>
               {schedule.channel.channelType}
               {schedule.channel.remoteControlKeyId ? ` ・ ${schedule.channel.remoteControlKeyId}ch` : ""}
             </p>
           </div>
         </button>
       </header>
-      <div className="relative" style={{ height: `${windowMinutes * PIXELS_PER_MINUTE}px` }}>
-        <HourLines windowMinutes={windowMinutes} />
+      <div className="relative" style={{ height: `${windowMinutes * pixelsPerMinute}px` }}>
+        <HourLines windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
         {schedule.programs
           .filter((program) => program.endAt > windowStart && program.startAt < windowStart + windowMinutes * 60_000)
           .map((program) => {
             const offsetMinutes = (program.startAt - windowStart) / 60_000;
             const lengthMinutes = (program.endAt - program.startAt) / 60_000;
-            const height = lengthMinutes * PIXELS_PER_MINUTE;
+            const height = lengthMinutes * pixelsPerMinute;
             const dimmed =
               highlightGenres.length > 0 &&
               ![program.genre1, program.genre2, program.genre3].some(
@@ -115,7 +128,7 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
                   programTone(program.genre1),
                   dimmed && "opacity-35 saturate-50",
                 )}
-                style={{ top: `${offsetMinutes * PIXELS_PER_MINUTE}px`, height: `${height}px` }}
+                style={{ top: `${offsetMinutes * pixelsPerMinute}px`, height: `${height}px` }}
                 aria-label={`${formatTime(program.startAt)} ${program.name} の録画予約メニュー`}
                 onClick={() => onSelectProgram(program, schedule.channel.name)}
               >
@@ -140,7 +153,7 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
   );
 });
 
-function HourLines({ windowMinutes }: { windowMinutes: number }) {
+function HourLines({ windowMinutes, pixelsPerMinute }: { windowMinutes: number; pixelsPerMinute: number }) {
   return (
     <>
       {Array.from({ length: Math.ceil(windowMinutes / 60) }, (_, hour) => (
@@ -148,23 +161,23 @@ function HourLines({ windowMinutes }: { windowMinutes: number }) {
           key={hour}
           aria-hidden="true"
           className="absolute inset-x-0 border-t border-border/60"
-          style={{ top: `${hour * 60 * PIXELS_PER_MINUTE}px` }}
+          style={{ top: `${hour * 60 * pixelsPerMinute}px` }}
         />
       ))}
     </>
   );
 }
 
-function TimeAxis({ windowStart, windowMinutes }: { windowStart: number; windowMinutes: number }) {
+function TimeAxis({ windowStart, windowMinutes, pixelsPerMinute }: { windowStart: number; windowMinutes: number; pixelsPerMinute: number }) {
   return (
     <div className="sticky left-0 z-30 w-14 shrink-0 border-r bg-background/95 backdrop-blur">
       <div className="glass-header sticky top-0 z-10 h-16 rounded-none border-x-0 border-t-0" />
-      <div className="relative" style={{ height: `${windowMinutes * PIXELS_PER_MINUTE}px` }}>
+      <div className="relative" style={{ height: `${windowMinutes * pixelsPerMinute}px` }}>
         {Array.from({ length: Math.ceil(windowMinutes / 60) }, (_, hour) => (
           <div
             key={hour}
             className="absolute inset-x-0 border-t border-border/60 pt-1 text-center text-xs font-medium text-muted-foreground"
-            style={{ top: `${hour * 60 * PIXELS_PER_MINUTE}px` }}
+            style={{ top: `${hour * 60 * pixelsPerMinute}px` }}
           >
             {formatTime(windowStart + hour * 3_600_000)}
           </div>
@@ -174,7 +187,7 @@ function TimeAxis({ windowStart, windowMinutes }: { windowStart: number; windowM
   );
 }
 
-function NowLine({ now, windowStart, windowMinutes }: { now: number; windowStart: number; windowMinutes: number }) {
+function NowLine({ now, windowStart, windowMinutes, pixelsPerMinute }: { now: number; windowStart: number; windowMinutes: number; pixelsPerMinute: number }) {
   const offsetMinutes = (now - windowStart) / 60_000;
   if (offsetMinutes < 0 || offsetMinutes > windowMinutes) return null;
 
@@ -183,7 +196,7 @@ function NowLine({ now, windowStart, windowMinutes }: { now: number; windowStart
     <div
       aria-hidden="true"
       className="pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-red-500"
-      style={{ top: `${HEADER_HEIGHT + offsetMinutes * PIXELS_PER_MINUTE}px` }}
+      style={{ top: `${HEADER_HEIGHT + offsetMinutes * pixelsPerMinute}px` }}
     >
       <span className="absolute -top-2 left-0 rounded-r bg-red-500 px-1.5 py-0.5 text-[0.65rem] leading-3 font-bold text-white">
         {formatTime(now)}
@@ -208,6 +221,9 @@ function GuideGrid({
   now,
   drawMode,
   highlightGenres,
+  showChannelLogo,
+  columnScale,
+  pixelsPerMinute,
   onSelectProgram,
   onSelectChannel,
 }: {
@@ -217,6 +233,9 @@ function GuideGrid({
   now: number;
   drawMode: GuideDrawMode;
   highlightGenres: readonly number[];
+  showChannelLogo: boolean;
+  columnScale: number;
+  pixelsPerMinute: number;
   onSelectProgram: (program: ScheduleProgramItem, channelName: string) => void;
   onSelectChannel: (channel: Schedule["channel"]) => void;
 }) {
@@ -285,6 +304,10 @@ function GuideGrid({
   const columns = schedules.slice(first, last);
   const leftSpacer = drawMode === "minimal" ? first * visibleRange.columnWidth : 0;
   const rightSpacer = drawMode === "minimal" ? (schedules.length - last) * visibleRange.columnWidth : 0;
+  const scale = columnScale / 100;
+  const gridStyle = {
+    "--guide-column-width": `clamp(${GUIDE_COLUMN_WIDTH_MOBILE * scale}px, ${14 * scale}cqw, ${GUIDE_COLUMN_WIDTH_DESKTOP * scale}px)`,
+  } as CSSProperties;
 
   return (
     <>
@@ -294,13 +317,14 @@ function GuideGrid({
       </div>
       <div
         ref={scrollRef}
-        className="@container [--guide-column-width:clamp(100px,14cqw,140px)] min-h-0 flex-1 overflow-auto overscroll-contain"
+        className="@container min-h-0 flex-1 overflow-auto overscroll-contain"
+        style={gridStyle}
         role="region"
         aria-label="番組表"
       >
         {/* 時間軸・列・現在時刻の線を同じ座標系に置くため、内容全体を 1 つの relative でまとめる。 */}
         <div className="relative flex w-max min-w-full">
-          <TimeAxis windowStart={windowStart} windowMinutes={windowMinutes} />
+          <TimeAxis windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
           {leftSpacer > 0 ? <div aria-hidden="true" style={{ width: leftSpacer }} className="shrink-0" /> : null}
           {columns.map((schedule) => (
             <div
@@ -312,14 +336,16 @@ function GuideGrid({
                 schedule={schedule}
                 windowStart={windowStart}
                 windowMinutes={windowMinutes}
+                pixelsPerMinute={pixelsPerMinute}
                 highlightGenres={highlightGenres}
+                showChannelLogo={showChannelLogo}
                 onSelectProgram={onSelectProgram}
                 onSelectChannel={onSelectChannel}
               />
             </div>
           ))}
           {rightSpacer > 0 ? <div aria-hidden="true" style={{ width: rightSpacer }} className="shrink-0" /> : null}
-          <NowLine now={now} windowStart={windowStart} windowMinutes={windowMinutes} />
+          <NowLine now={now} windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
         </div>
       </div>
     </>
@@ -424,6 +450,9 @@ export function GuideView() {
             now={now}
             drawMode={preferences.guideDrawMode}
             highlightGenres={preferences.guideGenres}
+            showChannelLogo={preferences.isShowGuideChannelLogos}
+            columnScale={preferences.guideColumnScale}
+            pixelsPerMinute={preferences.guidePixelsPerMinute}
             onSelectProgram={selectProgram}
             onSelectChannel={selectChannel}
           />

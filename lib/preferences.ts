@@ -5,6 +5,10 @@ export type ThemePreference = "system" | "light" | "dark";
 /** ガラスの透け具合の既定値・許容範囲 (0=透けない 〜 100=最も透ける)。 */
 export const GLASS_OPACITY_MIN = 0;
 export const GLASS_OPACITY_MAX = 100;
+export const GUIDE_COLUMN_SCALE_MIN = 50;
+export const GUIDE_COLUMN_SCALE_MAX = 200;
+export const GUIDE_PIXELS_PER_MINUTE_MIN = 1;
+export const GUIDE_PIXELS_PER_MINUTE_MAX = 6;
 
 /**
  * 番組表の描画のしかた。EPGStation と同じ 3 段階。
@@ -21,6 +25,12 @@ export interface AppPreferences {
   /** 番組表に表示する時間数。1〜24 時間。 */
   guideLength: number;
   guideDrawMode: GuideDrawMode;
+  /** 番組表の局ヘッダーに放送局ロゴを表示する。 */
+  isShowGuideChannelLogos: boolean;
+  /** レスポンシブな標準局列幅に対する倍率（%）。 */
+  guideColumnScale: number;
+  /** 番組の1分を縦方向に何pxで描くか。 */
+  guidePixelsPerMinute: number;
   /** 番組表で目立たせる大分類ジャンル (0〜15)。空なら全ジャンルを通常表示する。 */
   guideGenres: number[];
   reservesLength: 12 | 24 | 48;
@@ -51,6 +61,9 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   isShowOnlyFreePrograms: false,
   guideLength: 24,
   guideDrawMode: "sequential",
+  isShowGuideChannelLogos: true,
+  guideColumnScale: 150,
+  guidePixelsPerMinute: 3,
   guideGenres: [],
   reservesLength: 24,
   recordedLength: 24,
@@ -68,6 +81,12 @@ function toGuideLength(value: unknown): number {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 24
     ? value
     : DEFAULT_PREFERENCES.guideLength;
+}
+
+function toClampedNumber(value: unknown, min: number, max: number, fallback: number, step = 1): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  const clamped = Math.min(max, Math.max(min, value));
+  return Math.round(clamped / step) * step;
 }
 
 export const PREFERENCES_STORAGE_KEY = "tnlastation:preferences";
@@ -120,6 +139,24 @@ export function parsePreferences(value: string | null): AppPreferences {
       guideDrawMode: isOneOf(parsed.guideDrawMode, ["all", "sequential", "minimal"] as const)
         ? parsed.guideDrawMode
         : DEFAULT_PREFERENCES.guideDrawMode,
+      isShowGuideChannelLogos:
+        typeof parsed.isShowGuideChannelLogos === "boolean"
+          ? parsed.isShowGuideChannelLogos
+          : DEFAULT_PREFERENCES.isShowGuideChannelLogos,
+      guideColumnScale: toClampedNumber(
+        parsed.guideColumnScale,
+        GUIDE_COLUMN_SCALE_MIN,
+        GUIDE_COLUMN_SCALE_MAX,
+        DEFAULT_PREFERENCES.guideColumnScale,
+        5,
+      ),
+      guidePixelsPerMinute: toClampedNumber(
+        parsed.guidePixelsPerMinute,
+        GUIDE_PIXELS_PER_MINUTE_MIN,
+        GUIDE_PIXELS_PER_MINUTE_MAX,
+        DEFAULT_PREFERENCES.guidePixelsPerMinute,
+        0.25,
+      ),
       guideGenres: Array.isArray(parsed.guideGenres)
         ? Array.from(new Set(parsed.guideGenres.filter((genre): genre is number => typeof genre === "number" && Number.isInteger(genre) && genre >= 0 && genre <= 15)))
         : DEFAULT_PREFERENCES.guideGenres,

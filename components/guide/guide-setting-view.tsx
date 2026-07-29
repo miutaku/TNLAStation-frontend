@@ -4,6 +4,7 @@ import { ArrowLeft, RotateCcw, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/page-header";
+import { GuideDimensionSettings } from "@/components/guide/guide-dimension-settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -72,9 +73,20 @@ export function GuideSettingView() {
               ))}
             </select>
           </div>
+          <GuideDimensionSettings
+            idPrefix="guide-setting"
+            columnScale={preferences.guideColumnScale}
+            pixelsPerMinute={preferences.guidePixelsPerMinute}
+            onColumnScaleChange={(guideColumnScale) => updatePreferences({ guideColumnScale })}
+            onPixelsPerMinuteChange={(guidePixelsPerMinute) => updatePreferences({ guidePixelsPerMinute })}
+          />
           <div className="flex items-start justify-between gap-5 py-4">
             <div><p id="guide-free-label" className="text-sm font-semibold">無料放送のみ</p><p id="guide-free-description" className="mt-1 text-xs leading-5 text-muted-foreground">有料放送の番組を番組表から除外します。</p></div>
             <Switch checked={preferences.isShowOnlyFreePrograms} aria-labelledby="guide-free-label" aria-describedby="guide-free-description" onClick={() => updatePreferences({ isShowOnlyFreePrograms: !preferences.isShowOnlyFreePrograms })} />
+          </div>
+          <div className="flex items-start justify-between gap-5 py-4">
+            <div><p id="guide-logo-label" className="text-sm font-semibold">放送局ロゴを表示</p><p id="guide-logo-description" className="mt-1 text-xs leading-5 text-muted-foreground">局見出しにロゴを表示します。モバイルでは局名の上に小さく配置し、列幅を広げません。</p></div>
+            <Switch checked={preferences.isShowGuideChannelLogos} aria-labelledby="guide-logo-label" aria-describedby="guide-logo-description" onClick={() => updatePreferences({ isShowGuideChannelLogos: !preferences.isShowGuideChannelLogos })} />
           </div>
           <div className="flex items-start justify-between gap-5 py-4">
             <div><p id="guide-half-label" className="text-sm font-semibold">半角表示</p><p id="guide-half-description" className="mt-1 text-xs leading-5 text-muted-foreground">API から半角文字の番組情報を取得します。</p></div>

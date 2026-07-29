@@ -18,6 +18,9 @@ describe("preferences", () => {
           isHalfWidthDisplayed: true,
           isShowOnlyFreePrograms: true,
           guideLength: 12,
+          isShowGuideChannelLogos: false,
+          guideColumnScale: 175,
+          guidePixelsPerMinute: 4.25,
           reservesLength: 48,
           recordedLength: 12,
           isShowDropInfo: false,
@@ -31,6 +34,9 @@ describe("preferences", () => {
       isShowOnlyFreePrograms: true,
       guideLength: 12,
       guideDrawMode: "sequential",
+      isShowGuideChannelLogos: false,
+      guideColumnScale: 175,
+      guidePixelsPerMinute: 4.25,
       guideGenres: [],
       reservesLength: 48,
       recordedLength: 12,
@@ -112,5 +118,19 @@ describe("preferences", () => {
     expect(parsePreferences(JSON.stringify({ glassDisabled: "yes" })).glassDisabled).toBe(
       DEFAULT_PREFERENCES.glassDisabled,
     );
+  });
+
+  it("restores the guide channel logo option and rejects malformed values", () => {
+    expect(parsePreferences(JSON.stringify({ isShowGuideChannelLogos: false })).isShowGuideChannelLogos).toBe(false);
+    expect(parsePreferences(JSON.stringify({ isShowGuideChannelLogos: "yes" })).isShowGuideChannelLogos).toBe(
+      DEFAULT_PREFERENCES.isShowGuideChannelLogos,
+    );
+  });
+
+  it("clamps and rounds guide dimensions to supported steps", () => {
+    expect(parsePreferences(JSON.stringify({ guideColumnScale: 173 })).guideColumnScale).toBe(175);
+    expect(parsePreferences(JSON.stringify({ guideColumnScale: 999 })).guideColumnScale).toBe(200);
+    expect(parsePreferences(JSON.stringify({ guidePixelsPerMinute: 2.38 })).guidePixelsPerMinute).toBe(2.5);
+    expect(parsePreferences(JSON.stringify({ guidePixelsPerMinute: 0 })).guidePixelsPerMinute).toBe(1);
   });
 });

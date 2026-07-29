@@ -3,6 +3,7 @@
 import { MonitorCog, RotateCcw, SlidersHorizontal, Smartphone, Tv } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
+import { GuideDimensionSettings } from "@/components/guide/guide-dimension-settings";
 import { AccentColorSettings } from "@/components/settings/accent-color-settings";
 import { BottomBarItemsSettings } from "@/components/settings/bottom-bar-settings";
 import { GlassOpacitySettings } from "@/components/settings/glass-opacity-settings";
@@ -174,12 +175,26 @@ export function SettingsView() {
               options={GUIDE_LENGTH_OPTIONS.map((value) => ({ value, label: `${value}時間` }))}
               onChange={(guideLength) => updatePreferences({ guideLength: Number(guideLength) })}
             />
+            <GuideDimensionSettings
+              idPrefix="settings-guide"
+              columnScale={preferences.guideColumnScale}
+              pixelsPerMinute={preferences.guidePixelsPerMinute}
+              onColumnScaleChange={(guideColumnScale) => updatePreferences({ guideColumnScale })}
+              onPixelsPerMinuteChange={(guidePixelsPerMinute) => updatePreferences({ guidePixelsPerMinute })}
+            />
             <SettingRow
               id="free-programs"
               title="無料放送のみ"
               description="番組表から有料放送を除外します。"
               checked={preferences.isShowOnlyFreePrograms}
               onCheckedChange={(isShowOnlyFreePrograms) => updatePreferences({ isShowOnlyFreePrograms })}
+            />
+            <SettingRow
+              id="guide-channel-logos"
+              title="放送局ロゴを表示"
+              description="番組表の局見出しにロゴを表示します。モバイルでは局名の上に小さく配置します。"
+              checked={preferences.isShowGuideChannelLogos}
+              onCheckedChange={(isShowGuideChannelLogos) => updatePreferences({ isShowGuideChannelLogos })}
             />
           </CardContent>
         </Card>
