@@ -23,7 +23,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ApiError, apiClient } from "@/lib/api/client";
-import type { ChannelItem, Rule, RuleId } from "@/lib/api/types";
+import type { ChannelItem, Config, Rule, RuleId } from "@/lib/api/types";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 
 function BackToRulesButton() {
@@ -41,6 +41,8 @@ export function RuleCreateView({ initialDraft }: { initialDraft?: RuleCreateDraf
   const router = useRouter();
   const [name, setName] = useState(initialDraft?.name ?? "");
   const [avoidDuplicate, setAvoidDuplicate] = useState(false);
+  const [encodeMode, setEncodeMode] = useState("");
+  const [removeOriginal, setRemoveOriginal] = useState(false);
   const [conditions, setConditions] = useState<SearchConditions>(
     initialDraft
       ? ruleSearchOptionToConditions(initialDraft.searchOption)
@@ -48,15 +50,23 @@ export function RuleCreateView({ initialDraft }: { initialDraft?: RuleCreateDraf
   );
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const loadChannels = useCallback(
-    (signal: AbortSignal) => apiClient.getChannels(signal),
+  const loadOptions = useCallback(
+    async (signal: AbortSignal) => {
+      const [channels, config] = await Promise.all([
+        apiClient.getChannels(signal),
+        apiClient.getConfig(signal),
+      ]);
+      return { channels, config };
+    },
     [],
   );
-  const channels = useApiResource(loadChannels);
+  const options = useApiResource(loadOptions);
 
   const reset = () => {
     setName(initialDraft?.name ?? "");
     setAvoidDuplicate(false);
+    setEncodeMode("");
+    setRemoveOriginal(false);
     setConditions(
       initialDraft
         ? ruleSearchOptionToConditions(initialDraft.searchOption)
@@ -80,6 +90,12 @@ export function RuleCreateView({ initialDraft }: { initialDraft?: RuleCreateDraf
           allowEndLack: true,
           avoidDuplicate,
         },
+        ...(encodeMode ? {
+          encodeOption: {
+            mode1: encodeMode,
+            isDeleteOriginalAfterEncode: removeOriginal,
+          },
+        } : {}),
       });
       router.push("/rule");
       router.refresh();
@@ -98,12 +114,12 @@ export function RuleCreateView({ initialDraft }: { initialDraft?: RuleCreateDraf
         actions={<BackToRulesButton />}
       />
 
-      {channels.isLoading ? <ContentSkeleton cards={2} /> : null}
-      {channels.error ? (
+      {options.isLoading ? <ContentSkeleton cards={2} /> : null}
+      {options.error ? (
         <ErrorState
           title="作成画面を読み込めませんでした"
-          description={channels.error.message}
-          onRetry={channels.reload}
+          description={options.error.message}
+          onRetry={options.reload}
         />
       ) : null}
       {actionError ? (
@@ -111,17 +127,22 @@ export function RuleCreateView({ initialDraft }: { initialDraft?: RuleCreateDraf
           <AlertDescription>{actionError}</AlertDescription>
         </Alert>
       ) : null}
-      {channels.data ? (
+      {options.data ? (
         <section className="glass-panel min-w-0 rounded-2xl p-4 sm:p-6" aria-label="録画ルール作成フォーム">
           <RuleForm
             mode="create"
             name={name}
             avoidDuplicate={avoidDuplicate}
+            config={options.data.config}
+            encodeMode={encodeMode}
+            removeOriginal={removeOriginal}
             conditions={conditions}
-            channels={channels.data}
+            channels={options.data.channels}
             busy={busy}
             onNameChange={setName}
             onAvoidDuplicateChange={setAvoidDuplicate}
+            onEncodeModeChange={setEncodeMode}
+            onRemoveOriginalChange={setRemoveOriginal}
             onConditionsChange={setConditions}
             onReset={reset}
             onCancel={() => router.push("/rule")}
@@ -136,15 +157,19 @@ export function RuleCreateView({ initialDraft }: { initialDraft?: RuleCreateDraf
 function LoadedRuleEditor({
   rule,
   channels,
+  config,
 }: {
   rule: Rule;
   channels: ChannelItem[];
+  config: Config;
 }) {
   const router = useRouter();
   const initialConditions = ruleSearchOptionToConditions(rule.searchOption);
   const [conditions, setConditions] = useState(initialConditions);
   const [name, setName] = useState(rule.name ?? "");
   const [avoidDuplicate, setAvoidDuplicate] = useState(rule.reserveOption.avoidDuplicate);
+  const [encodeMode, setEncodeMode] = useState(rule.encodeOption?.mode1 ?? "");
+  const [removeOriginal, setRemoveOriginal] = useState(rule.encodeOption?.isDeleteOriginalAfterEncode ?? false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -152,6 +177,8 @@ function LoadedRuleEditor({
     setConditions(initialConditions);
     setName(rule.name ?? "");
     setAvoidDuplicate(rule.reserveOption.avoidDuplicate);
+    setEncodeMode(rule.encodeOption?.mode1 ?? "");
+    setRemoveOriginal(rule.encodeOption?.isDeleteOriginalAfterEncode ?? false);
     setActionError(null);
   };
 
@@ -169,6 +196,11 @@ function LoadedRuleEditor({
           conditions,
           name,
           avoidDuplicate,
+          encodeMode ? {
+            ...rule.encodeOption,
+            mode1: encodeMode,
+            isDeleteOriginalAfterEncode: removeOriginal,
+          } : undefined,
         ),
       );
       router.push("/rule");
@@ -207,11 +239,16 @@ function LoadedRuleEditor({
           mode="edit"
           name={name}
           avoidDuplicate={avoidDuplicate}
+          config={config}
+          encodeMode={encodeMode}
+          removeOriginal={removeOriginal}
           conditions={conditions}
           channels={channels}
           busy={busy}
           onNameChange={setName}
           onAvoidDuplicateChange={setAvoidDuplicate}
+          onEncodeModeChange={setEncodeMode}
+          onRemoveOriginalChange={setRemoveOriginal}
           onConditionsChange={setConditions}
           onReset={reset}
           onCancel={() => router.push("/rule")}
@@ -225,11 +262,12 @@ function LoadedRuleEditor({
 export function RuleEditView({ ruleId }: { ruleId: RuleId }) {
   const loadEditor = useCallback(
     async (signal: AbortSignal) => {
-      const [rule, channels] = await Promise.all([
+      const [rule, channels, config] = await Promise.all([
         apiClient.getRule(ruleId, signal),
         apiClient.getChannels(signal),
+        apiClient.getConfig(signal),
       ]);
-      return { rule, channels };
+      return { rule, channels, config };
     },
     [ruleId],
   );
@@ -288,6 +326,7 @@ export function RuleEditView({ ruleId }: { ruleId: RuleId }) {
       key={resource.data.rule.id}
       rule={resource.data.rule}
       channels={resource.data.channels}
+      config={resource.data.config}
     />
   ) : null;
 }

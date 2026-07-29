@@ -69,6 +69,7 @@ describe("recording rule editor payload", () => {
       initial,
       " 深夜アニメ・更新版 ",
       false,
+      originalRule.encodeOption,
     );
 
     expect(update.name).toBe("深夜アニメ・更新版");
@@ -94,7 +95,14 @@ describe("recording rule editor payload", () => {
       genres: [6],
     };
 
-    const update = buildRuleUpdateOptions(originalRule, initial, edited, originalRule.name ?? "", true);
+    const update = buildRuleUpdateOptions(
+      originalRule,
+      initial,
+      edited,
+      originalRule.name ?? "",
+      true,
+      originalRule.encodeOption,
+    );
 
     expect(update.searchOption.keyword).toBe("新作アニメ");
     expect(update.searchOption.genres).toEqual([{ genre: 6 }]);
@@ -102,5 +110,34 @@ describe("recording rule editor payload", () => {
     expect(update.searchOption.searchPeriods).toEqual(originalRule.searchOption.searchPeriods);
     expect(update.searchOption.ignoreKeyCS).toBe(true);
     expect(update.searchOption.ignoreKeyRegExp).toBe(true);
+  });
+
+  it("updates or clears the encode option selected in detailed options", () => {
+    const initial = ruleSearchOptionToConditions(originalRule.searchOption);
+    const changedEncodeOption = {
+      ...originalRule.encodeOption!,
+      mode1: "AV1",
+      isDeleteOriginalAfterEncode: false,
+    };
+
+    const changed = buildRuleUpdateOptions(
+      originalRule,
+      initial,
+      initial,
+      originalRule.name ?? "",
+      true,
+      changedEncodeOption,
+    );
+    const cleared = buildRuleUpdateOptions(
+      originalRule,
+      initial,
+      initial,
+      originalRule.name ?? "",
+      true,
+      undefined,
+    );
+
+    expect(changed.encodeOption).toEqual(changedEncodeOption);
+    expect(cleared.encodeOption).toBeUndefined();
   });
 });

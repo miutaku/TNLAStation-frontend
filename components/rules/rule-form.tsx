@@ -9,10 +9,13 @@ import {
   searchConditionsToOption,
   type SearchConditions,
 } from "@/components/search/search-conditions";
+import { ReserveEncodeOptions as ReserveEncodeOptionsFields } from "@/components/reserves/reserve-encode-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type {
   ChannelItem,
+  Config,
+  ReserveEncodeOptions,
   Rule,
   RuleSearchOptions,
   UpdateRuleOptions,
@@ -80,6 +83,7 @@ export function buildRuleUpdateOptions(
   conditions: SearchConditions,
   name: string,
   avoidDuplicate: boolean,
+  encodeOption: ReserveEncodeOptions | undefined,
 ): UpdateRuleOptions {
   const edited = searchConditionsToOption(conditions);
   const searchOption: RuleSearchOptions = { ...rule.searchOption };
@@ -135,7 +139,7 @@ export function buildRuleUpdateOptions(
       avoidDuplicate,
     },
     saveOption: rule.saveOption,
-    encodeOption: rule.encodeOption,
+    encodeOption,
   };
 }
 
@@ -143,11 +147,16 @@ export function RuleForm({
   mode,
   name,
   avoidDuplicate,
+  config,
+  encodeMode,
+  removeOriginal,
   conditions,
   channels,
   busy,
   onNameChange,
   onAvoidDuplicateChange,
+  onEncodeModeChange,
+  onRemoveOriginalChange,
   onConditionsChange,
   onReset,
   onCancel,
@@ -156,11 +165,16 @@ export function RuleForm({
   mode: "create" | "edit";
   name: string;
   avoidDuplicate: boolean;
+  config: Config;
+  encodeMode: string;
+  removeOriginal: boolean;
   conditions: SearchConditions;
   channels: ChannelItem[];
   busy: boolean;
   onNameChange: (value: string) => void;
   onAvoidDuplicateChange: (value: boolean) => void;
+  onEncodeModeChange: (value: string) => void;
+  onRemoveOriginalChange: (value: boolean) => void;
   onConditionsChange: (value: SearchConditions) => void;
   onReset: () => void;
   onCancel: () => void;
@@ -199,6 +213,17 @@ export function RuleForm({
             同じ番組の重複予約を避ける
           </label>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <ReserveEncodeOptionsFields
+          idPrefix={`${mode}-rule`}
+          config={config}
+          encodeMode={encodeMode}
+          removeOriginal={removeOriginal}
+          onEncodeModeChange={onEncodeModeChange}
+          onRemoveOriginalChange={onRemoveOriginalChange}
+        />
       </div>
 
       <div className="mt-6 flex flex-col-reverse gap-2 border-t pt-5 sm:flex-row sm:justify-end">

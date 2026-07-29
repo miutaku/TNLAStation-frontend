@@ -534,11 +534,14 @@ export function GuideView() {
         {resourceState}
       </div>
 
-      <ProgramReserveDialog
-        program={selectedProgram?.program ?? null}
-        channelName={selectedProgram?.channelName ?? ""}
-        onClose={() => setSelectedProgram(null)}
-      />
+      {resource.data ? (
+        <ProgramReserveDialog
+          program={selectedProgram?.program ?? null}
+          channelName={selectedProgram?.channelName ?? ""}
+          config={resource.data.config}
+          onClose={() => setSelectedProgram(null)}
+        />
+      ) : null}
       {resource.data ? (
         <WatchNowDialog channel={watchChannel} config={resource.data.config} onClose={() => setWatchChannel(null)} />
       ) : null}

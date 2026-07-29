@@ -8,8 +8,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { ReserveEncodeOptions } from "@/components/reserves/reserve-encode-options";
 import { apiClient } from "@/lib/api/client";
-import type { ScheduleProgramItem } from "@/lib/api/types";
+import type { Config, ScheduleProgramItem } from "@/lib/api/types";
 import { formatDateTime, formatDuration, genreName } from "@/lib/format";
 
 function genreList(program: ScheduleProgramItem): string {
@@ -22,17 +23,21 @@ function genreList(program: ScheduleProgramItem): string {
 export function ProgramReserveDialog({
   program,
   channelName,
+  config,
   onClose,
   onReserved,
 }: {
   program: ScheduleProgramItem | null;
   channelName: string;
+  config: Config;
   onClose: () => void;
   onReserved?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [encodeMode, setEncodeMode] = useState("");
+  const [removeOriginal, setRemoveOriginal] = useState(false);
 
   // 別の番組を開いたら前回の結果表示を消す。描画中に前回分と比べて戻すのが React の作法。
   const [lastId, setLastId] = useState(program?.id);
@@ -41,6 +46,8 @@ export function ProgramReserveDialog({
     setMessage(null);
     setError(null);
     setBusy(false);
+    setEncodeMode("");
+    setRemoveOriginal(false);
   }
 
   if (program === null) return null;
@@ -50,7 +57,16 @@ export function ProgramReserveDialog({
     setError(null);
     setMessage(null);
     try {
-      const reserveId = await apiClient.addManualReserve({ programId: program.id, allowEndLack: true });
+      const reserveId = await apiClient.addManualReserve({
+        programId: program.id,
+        allowEndLack: true,
+        ...(encodeMode ? {
+          encodeOption: {
+            mode1: encodeMode,
+            isDeleteOriginalAfterEncode: removeOriginal,
+          },
+        } : {}),
+      });
       setMessage(`予約 #${reserveId} を追加しました。`);
       onReserved?.();
     } catch (reason) {
@@ -91,6 +107,17 @@ export function ProgramReserveDialog({
 
       {program.description ? <p className="mt-4 text-sm leading-6 [overflow-wrap:anywhere]">{program.description}</p> : null}
       {program.extended ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground [overflow-wrap:anywhere]">{program.extended}</p> : null}
+
+      <div className="mt-5">
+        <ReserveEncodeOptions
+          idPrefix={`program-${program.id}`}
+          config={config}
+          encodeMode={encodeMode}
+          removeOriginal={removeOriginal}
+          onEncodeModeChange={setEncodeMode}
+          onRemoveOriginalChange={setRemoveOriginal}
+        />
+      </div>
 
       {message ? <Alert role="status" className="mt-5 border-emerald-500/35"><AlertDescription>{message}</AlertDescription></Alert> : null}
       {error ? <Alert role="alert" className="mt-5 border-destructive/40"><AlertDescription>{error}</AlertDescription></Alert> : null}

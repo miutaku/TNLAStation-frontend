@@ -486,11 +486,14 @@ export function OnAirView() {
         </>
       ) : null}
 
-      <ProgramReserveDialog
-        program={reserveTarget?.program ?? null}
-        channelName={reserveTarget?.channelName ?? ""}
-        onClose={() => setReserveTarget(null)}
-      />
+      {resource.data ? (
+        <ProgramReserveDialog
+          program={reserveTarget?.program ?? null}
+          channelName={reserveTarget?.channelName ?? ""}
+          config={resource.data.config}
+          onClose={() => setReserveTarget(null)}
+        />
+      ) : null}
       {resource.data ? (
         <WatchNowDialog channel={watchChannel} config={resource.data.config} onClose={() => setWatchChannel(null)} />
       ) : null}
