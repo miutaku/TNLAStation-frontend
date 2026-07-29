@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useCallback, useState, type FormEvent, type ReactNode } from "react";
 
 import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-state";
+import { CollapsibleSearchPanel } from "@/components/collapsible-search-panel";
 import {
   CollectionViewToggle,
   useCollectionViewMode,
@@ -439,24 +440,29 @@ export function RulesView() {
         </Alert>
       ) : null}
 
-      <form onSubmit={searchRules} role="search" className="glass-panel mb-5 flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-end">
-        <div className="min-w-0 flex-1">
-          <label htmlFor="rule-keyword" className="mb-2 block text-sm font-semibold">ルールを検索</label>
-          <Input
-            id="rule-keyword"
-            type="search"
-            value={draftKeyword}
-            onChange={(event) => setDraftKeyword(event.target.value)}
-            placeholder="ルール名やキーワードを入力"
-          />
-        </div>
-        <Button type="submit"><Search aria-hidden="true" />検索</Button>
-        {keyword ? <Button type="button" variant="ghost" onClick={clearKeyword}>クリア</Button> : null}
-        {resource.data ? (
-          <p aria-live="polite" className="self-center text-sm text-muted-foreground">
-            {resource.data.total} 件
-          </p>
-        ) : null}
+      <form onSubmit={searchRules} role="search" className="mb-5">
+        <CollapsibleSearchPanel>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1">
+              <label htmlFor="rule-keyword" className="mb-2 block text-sm font-semibold">ルールを検索</label>
+              <Input
+                id="rule-keyword"
+                type="search"
+                value={draftKeyword}
+                onChange={(event) => setDraftKeyword(event.target.value)}
+                placeholder="ルール名やキーワードを入力"
+                maxLength={255}
+              />
+            </div>
+            <Button type="submit"><Search aria-hidden="true" />検索</Button>
+            {keyword ? <Button type="button" variant="ghost" onClick={clearKeyword}>クリア</Button> : null}
+            {resource.data ? (
+              <p aria-live="polite" className="self-center text-sm text-muted-foreground">
+                {resource.data.total} 件
+              </p>
+            ) : null}
+          </div>
+        </CollapsibleSearchPanel>
       </form>
 
       <div className="mb-4 flex justify-end gap-2">

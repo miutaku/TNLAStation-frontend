@@ -249,6 +249,7 @@ describe("EpgStationApiClient", () => {
       file: new File(["video"], "sample.ts", { type: "video/mp2t" }),
     });
     await client.deleteRecorded(202);
+    await client.deleteVideo(303);
 
     expect(requests.map(({ endpoint, method }) => `${method} ${endpoint}`)).toEqual([
       "GET /api/recorded/202?isHalfWidth=true",
@@ -258,6 +259,7 @@ describe("EpgStationApiClient", () => {
       "POST /api/recorded",
       "POST /api/videos/upload",
       "DELETE /api/recorded/202",
+      "DELETE /api/videos/303",
     ]);
     const uploadBody = requests[5]?.body;
     expect(uploadBody).toBeInstanceOf(FormData);

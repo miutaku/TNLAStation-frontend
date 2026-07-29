@@ -46,6 +46,7 @@ import { formatBytes, formatDateTime, formatDuration, genreName } from "@/lib/fo
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { useChannelNames } from "@/lib/hooks/use-channel-names";
 import { usePreferences } from "@/lib/hooks/use-preferences";
+import { createRecordedDeletePlan, type FileDeleteOption } from "@/lib/recorded-deletion";
 
 const recordedTableColumns = [
   { key: "status", label: "状態" },
@@ -59,6 +60,8 @@ const recordedTableColumns = [
   { key: "actions", label: "操作" },
 ] as const;
 type RecordedTableColumn = (typeof recordedTableColumns)[number]["key"];
+type BulkDeleteOption = FileDeleteOption;
+type SelectionScope = "page" | "all";
 
 function RecordedCard({ item, showDropInfo, selectable, selected, onToggleSelect, viewMode }: { item: RecordedItem; showDropInfo: boolean; selectable: boolean; selected: boolean; onToggleSelect: (id: number) => void; viewMode: CollectionViewMode }) {
   const channelName = useChannelNames();
@@ -268,12 +271,16 @@ export function RecordedView() {
   const [originalOnly, setOriginalOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [selectMode, setSelectMode] = useState(false);
+  const [selectionScope, setSelectionScope] = useState<SelectionScope>("page");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [selectingAll, setSelectingAll] = useState(false);
-  /** 「全ての番組を選択」で読み込んだ他ページの録画名も、削除確認の一覧に出せるよう覚えておく。 */
-  const [knownItemNames, setKnownItemNames] = useState<Map<number, string>>(new Map());
+  /** 他ページで選択した録画も、削除対象のファイルを判定できるよう覚えておく。 */
+  const [knownItems, setKnownItems] = useState<Map<number, RecordedItem>>(new Map());
   const [busy, setBusy] = useState(false);
   const [confirmBulk, setConfirmBulk] = useState(false);
+  const [bulkCandidateIds, setBulkCandidateIds] = useState<number[]>([]);
+  const [bulkTargetIds, setBulkTargetIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteOption, setBulkDeleteOption] = useState<BulkDeleteOption>("all");
   const [confirmCleanup, setConfirmCleanup] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -322,12 +329,19 @@ export function RecordedView() {
     const records = resource.data?.records;
     if (!records) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setKnownItemNames((current) => {
+    setKnownItems((current) => {
       const next = new Map(current);
-      for (const item of records) next.set(item.id, item.name);
+      for (const item of records) next.set(item.id, item);
       return next;
     });
   }, [resource.data]);
+
+  // 「このページ」を選んでいる間は、ページ移動後も表示中の番組だけを選択対象にする。
+  useEffect(() => {
+    if (!selectMode || selectionScope !== "page" || !resource.data?.records) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedIds(new Set(resource.data.records.map((item) => item.id)));
+  }, [resource.data, selectMode, selectionScope]);
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -359,11 +373,11 @@ export function RecordedView() {
     setSelectedIds(new Set());
   };
 
-  /** 今表示している1ページぶんだけを選択する。ページを切り替えながら選ぶときの下ごしらえ用。 */
-  const selectCurrentPage = () => {
-    const records = resource.data?.records;
-    if (!records) return;
-    setSelectedIds((current) => new Set([...current, ...records.map((item) => item.id)]));
+  const enterSelectMode = () => {
+    setSelectionScope("page");
+    setSelectMode(true);
+    const records = resource.data?.records ?? [];
+    setSelectedIds(new Set(records.map((item) => item.id)));
   };
 
   /**
@@ -383,9 +397,9 @@ export function RecordedView() {
         limit: resource.data.total,
         hasOriginalFile: originalOnly ? true : undefined,
       });
-      setKnownItemNames((current) => {
+      setKnownItems((current) => {
         const next = new Map(current);
-        for (const item of all.records) next.set(item.id, item.name);
+        for (const item of all.records) next.set(item.id, item);
         return next;
       });
       setSelectedIds(new Set(all.records.map((item) => item.id)));
@@ -396,16 +410,41 @@ export function RecordedView() {
     }
   };
 
+  const changeSelectionScope = (scope: SelectionScope) => {
+    setSelectionScope(scope);
+    if (scope === "page") {
+      setSelectedIds(new Set((resource.data?.records ?? []).map((item) => item.id)));
+    } else {
+      void selectAllPrograms();
+    }
+  };
+
   const deleteSelected = async () => {
-    const ids = [...selectedIds];
+    const ids = [...bulkTargetIds];
     setBusy(true);
     setActionError(null);
     setActionMessage(null);
     let deleted = 0;
+    let deletedFiles = 0;
     const failed: number[] = [];
     for (const id of ids) {
       try {
-        await apiClient.deleteRecorded(id);
+        if (bulkDeleteOption === "all") {
+          await apiClient.deleteRecorded(id);
+        } else {
+          const item = knownItems.get(id);
+          if (!item) throw new Error(`録画 #${id} の情報を取得できませんでした。`);
+          const plan = createRecordedDeletePlan(item, bulkDeleteOption);
+          if (plan.kind === "recorded") {
+            await apiClient.deleteRecorded(id);
+            deletedFiles += plan.videoFileCount;
+          } else {
+            for (const videoFileId of plan.videoFileIds) {
+              await apiClient.deleteVideo(videoFileId);
+              deletedFiles += 1;
+            }
+          }
+        }
         deleted += 1;
       } catch {
         failed.push(id);
@@ -414,9 +453,26 @@ export function RecordedView() {
     setBusy(false);
     setConfirmBulk(false);
     exitSelectMode();
-    if (failed.length > 0) setActionError(`${deleted} 件を削除しました。${failed.length} 件は削除できませんでした (保護中や録画中の可能性があります)。`);
-    else setActionMessage(`${deleted} 件の録画を削除しました。`);
+    const deletedLabel = bulkDeleteOption === "all" ? `${deleted} 件の録画` : `${deletedFiles} 件の録画ファイル`;
+    if (failed.length > 0) setActionError(`${deletedLabel}を削除しました。${failed.length} 件は削除できませんでした。`);
+    else setActionMessage(`${deletedLabel}を削除しました。`);
     resource.reload();
+  };
+
+  const openBulkDeleteDialog = () => {
+    const ids = [...selectedIds];
+    setBulkCandidateIds(ids);
+    setBulkTargetIds(new Set(ids));
+    setConfirmBulk(true);
+  };
+
+  const toggleBulkTarget = (id: number) => {
+    setBulkTargetIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   const cleanup = async () => {
@@ -442,7 +498,7 @@ export function RecordedView() {
         title="録画済み"
         description="録画ライブラリを検索し、ファイル状態、エンコード、保護、ドロップ情報を確認できます。"
         actions={
-          <><Button asChild><Link href="/recorded/upload"><Upload aria-hidden="true" />登録</Link></Button><Button asChild variant="ghost"><Link href="/encode"><Cpu aria-hidden="true" />エンコード</Link></Button><Button type="button" variant="ghost" onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}><ListChecks aria-hidden="true" />{selectMode ? "選択をやめる" : "選択"}</Button><Button type="button" variant="ghost" onClick={() => setConfirmCleanup(true)} disabled={busy}><Eraser aria-hidden="true" />整理</Button><Button type="button" variant="ghost" onClick={resource.revalidate} disabled={resource.isRefreshing}>
+          <><Button asChild><Link href="/recorded/upload"><Upload aria-hidden="true" />登録</Link></Button><Button asChild variant="ghost"><Link href="/encode"><Cpu aria-hidden="true" />エンコード</Link></Button><Button type="button" variant="ghost" onClick={() => (selectMode ? exitSelectMode() : enterSelectMode())}><ListChecks aria-hidden="true" />{selectMode ? "選択をやめる" : "選択"}</Button><Button type="button" variant="ghost" onClick={() => setConfirmCleanup(true)} disabled={busy}><Eraser aria-hidden="true" />整理</Button><Button type="button" variant="ghost" onClick={resource.revalidate} disabled={resource.isRefreshing}>
             <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
             更新
           </Button></>
@@ -456,27 +512,33 @@ export function RecordedView() {
         <div className="mb-5 flex flex-col gap-3 glass-panel rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-medium"><span className="tabular-nums text-foreground">{selectedIds.size}</span> 件を選択中</p>
           <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              title="このページに表示されている録画を選択します"
-              onClick={selectCurrentPage}
-              disabled={busy || (resource.data?.records.length ?? 0) === 0}
-            >
-              このページの全番組を選択
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              title="今の検索条件に一致する録画をすべて選択します"
-              onClick={() => void selectAllPrograms()}
-              disabled={busy || selectingAll || !resource.data || resource.data.total === 0 || selectedIds.size === resource.data.total}
-            >
-              {selectingAll ? <RefreshCw aria-hidden="true" className="animate-spin" /> : null}
-              {selectingAll ? "取得中…" : "全ての番組を選択"}
-            </Button>
+            <fieldset className="flex flex-wrap items-center gap-3" disabled={busy || selectingAll}>
+              <legend className="sr-only">番組の選択範囲</legend>
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted">
+                <input
+                  type="radio"
+                  name="recorded-selection-scope"
+                  value="page"
+                  checked={selectionScope === "page"}
+                  onChange={() => changeSelectionScope("page")}
+                  className="size-4 accent-[var(--primary)]"
+                />
+                このページの全番組を選択
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted">
+                <input
+                  type="radio"
+                  name="recorded-selection-scope"
+                  value="all"
+                  checked={selectionScope === "all"}
+                  onChange={() => changeSelectionScope("all")}
+                  className="size-4 accent-[var(--primary)]"
+                />
+                {selectingAll ? "全番組を取得中…" : "すべての番組を選択"}
+              </label>
+            </fieldset>
             <Button type="button" variant="ghost" onClick={exitSelectMode} disabled={busy}>選択解除</Button>
-            <Button type="button" variant="destructive" disabled={busy || selectedIds.size === 0} onClick={() => setConfirmBulk(true)}><Trash2 aria-hidden="true" />まとめて削除</Button>
+            <Button type="button" variant="destructive" disabled={busy || selectedIds.size === 0} onClick={openBulkDeleteDialog}><Trash2 aria-hidden="true" />まとめて削除</Button>
           </div>
         </div>
       ) : null}
@@ -552,17 +614,56 @@ export function RecordedView() {
 
       <ConfirmDialog
         open={confirmBulk}
-        title={`${selectedIds.size} 件の録画を削除しますか？`}
-        description="次の録画を削除します。この操作は元に戻せません。保護中・録画中の録画は削除されません。"
+        title={`${bulkTargetIds.size} 件の録画を削除しますか？`}
+        description="削除する番組とファイルを選択してください。この操作は元に戻せません。保護中・録画中の録画は削除されません。"
         confirmLabel="まとめて削除"
         busy={busy}
+        confirmDisabled={bulkTargetIds.size === 0}
         onConfirm={() => void deleteSelected()}
         onCancel={() => setConfirmBulk(false)}
       >
-        <ul className="mt-4 max-h-56 space-y-1 overflow-y-auto rounded-lg border bg-muted/40 p-2 text-xs">
-          {[...selectedIds].map((id) => (
-            <li key={id} className="truncate" title={knownItemNames.get(id) ?? `録画 #${id}`}>
-              {knownItemNames.get(id) ?? `録画 #${id}`}
+        <div className="mt-4">
+          <label htmlFor="bulk-delete-option" className="mb-2 block text-sm font-semibold">削除対象</label>
+          <select
+            id="bulk-delete-option"
+            className="h-10 w-full rounded-lg border border-input bg-background/75 px-3 text-sm"
+            value={bulkDeleteOption}
+            onChange={(event) => setBulkDeleteOption(event.target.value as BulkDeleteOption)}
+            disabled={busy}
+          >
+            <option value="all">すべて（番組情報を含む）</option>
+            <option value="ts">元 TS ファイルだけ</option>
+            <option value="encoded">エンコードファイルだけ</option>
+          </select>
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <p id="bulk-delete-programs-label" className="text-sm font-semibold">対象番組</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={busy || bulkCandidateIds.length === 0}
+            onClick={() => setBulkTargetIds(bulkTargetIds.size === bulkCandidateIds.length ? new Set() : new Set(bulkCandidateIds))}
+          >
+            {bulkTargetIds.size === bulkCandidateIds.length ? "すべて外す" : "すべて選ぶ"}
+          </Button>
+        </div>
+        <ul aria-labelledby="bulk-delete-programs-label" className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded-lg border bg-muted/40 p-2 text-xs">
+          {bulkCandidateIds.map((id) => (
+            <li key={id}>
+              <label className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-muted">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
+                  checked={bulkTargetIds.has(id)}
+                  disabled={busy}
+                  onChange={() => toggleBulkTarget(id)}
+                  aria-label={`${knownItems.get(id)?.name ?? `録画 #${id}`} を削除対象にする`}
+                />
+                <span className="min-w-0 truncate" title={knownItems.get(id)?.name ?? `録画 #${id}`}>
+                  {knownItems.get(id)?.name ?? `録画 #${id}`}
+                </span>
+              </label>
             </li>
           ))}
         </ul>

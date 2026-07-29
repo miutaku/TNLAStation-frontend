@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-state";
+import { CollapsibleSearchPanel } from "@/components/collapsible-search-panel";
 import {
   collectionLayoutClass,
   CollectionViewToggle,
@@ -18,6 +19,7 @@ import {
   hasAnySearchCondition,
   SearchConditionsForm,
   searchConditionsToOption,
+  validateSearchConditions,
   type SearchConditions,
 } from "@/components/search/search-conditions";
 import {
@@ -27,6 +29,7 @@ import {
 } from "@/components/table-column-visibility";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ValidationSummary } from "@/components/ui/validation-summary";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -173,7 +176,8 @@ export function SearchView() {
   );
   const resource = useApiResource(loadResults);
 
-  const canSearch = hasAnySearchCondition(conditions);
+  const validationErrors = validateSearchConditions(conditions);
+  const canSearch = hasAnySearchCondition(conditions) && validationErrors.length === 0;
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -211,8 +215,10 @@ export function SearchView() {
         }
       />
 
-      <form onSubmit={submit} role="search" className="glass-panel mb-6 rounded-2xl p-4 sm:p-6">
+      <form onSubmit={submit} role="search" className="mb-6">
+        <CollapsibleSearchPanel>
         <SearchConditionsForm conditions={conditions} onChange={setConditions} channels={channels} />
+        <div className="mt-5"><ValidationSummary errors={validationErrors} /></div>
 
         <div className="mt-6 flex flex-col-reverse gap-2 border-t pt-5 sm:flex-row sm:justify-end">
           <Button type="button" variant="ghost" onClick={reset}>
@@ -225,6 +231,7 @@ export function SearchView() {
             <Search aria-hidden="true" />検索する
           </Button>
         </div>
+        </CollapsibleSearchPanel>
       </form>
 
       {!request ? (

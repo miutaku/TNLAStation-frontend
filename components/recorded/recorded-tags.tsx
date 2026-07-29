@@ -29,6 +29,10 @@ export function RecordedTagEditor({
   const loadTags = useCallback((signal: AbortSignal): Promise<RecordedTags> => apiClient.getTags(signal), []);
   const tags = useApiResource(loadTags);
   const attachedIds = new Set(attached.map((tag) => tag.id));
+  const trimmedNewName = newName.trim();
+  const tagNameError = trimmedNewName && tags.data?.tags.some((tag) => tag.name.localeCompare(trimmedNewName, undefined, { sensitivity: "accent" }) === 0)
+    ? "同じ名前のタグが既にあります。"
+    : null;
 
   const run = async (operation: () => Promise<void>) => {
     setBusy(true);
@@ -47,7 +51,7 @@ export function RecordedTagEditor({
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
     const name = newName.trim();
-    if (!name) return;
+    if (!name || tagNameError) return;
     await run(async () => {
       // 作ったらそのまま付ける。付けるつもりが無いのに作る場面がない。
       const tagId = await apiClient.addTag(name, "#4caf50");
@@ -108,14 +112,19 @@ export function RecordedTagEditor({
         ) : null}
 
         <form onSubmit={(event) => void create(event)} className="flex gap-2">
-          <Input
-            value={newName}
-            onChange={(event) => setNewName(event.target.value)}
-            placeholder="新しいタグ名"
-            maxLength={64}
-            aria-label="新しいタグ名"
-          />
-          <Button type="submit" variant="outline" disabled={busy || !newName.trim()}><Plus aria-hidden="true" />作成</Button>
+          <div className="min-w-0 flex-1">
+            <Input
+              value={newName}
+              onChange={(event) => setNewName(event.target.value)}
+              placeholder="新しいタグ名"
+              maxLength={64}
+              aria-label="新しいタグ名"
+              aria-invalid={Boolean(tagNameError)}
+              aria-describedby={tagNameError ? "new-tag-error" : undefined}
+            />
+            {tagNameError ? <p id="new-tag-error" role="alert" className="mt-1 text-xs text-destructive">{tagNameError}</p> : null}
+          </div>
+          <Button type="submit" variant="outline" disabled={busy || !trimmedNewName || Boolean(tagNameError)}><Plus aria-hidden="true" />作成</Button>
         </form>
       </CardContent>
     </Card>

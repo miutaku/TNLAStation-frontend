@@ -84,6 +84,7 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
   const { preferences } = usePreferences();
   const [busy, setBusy] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [deleteVideoFileIds, setDeleteVideoFileIds] = useState<Set<number>>(new Set());
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [sourceVideoFileId, setSourceVideoFileId] = useState("");
@@ -100,6 +101,20 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
   const resource = useApiResource(loadDetail);
   const recorded = resource.data?.recorded ?? null;
   const files = useMemo(() => recorded?.videoFiles ?? [], [recorded?.videoFiles]);
+
+  const openDeleteDialog = () => {
+    setDeleteVideoFileIds(new Set(files.map((file) => file.id)));
+    setConfirmAction("delete");
+  };
+
+  const toggleDeleteVideoFile = (videoFileId: number) => {
+    setDeleteVideoFileIds((current) => {
+      const next = new Set(current);
+      if (next.has(videoFileId)) next.delete(videoFileId);
+      else next.add(videoFileId);
+      return next;
+    });
+  };
 
   const runAction = async (operation: () => Promise<void>, success: string, after?: () => void) => {
     setBusy(true);
@@ -142,7 +157,7 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
   };
 
   const confirmDetails: Record<ConfirmAction, { title: string; description: string; label: string }> = {
-    delete: { title: "録画を削除しますか？", description: `「${recorded?.name ?? "この録画"}」の番組情報と関連ファイルを削除します。この操作は元に戻せません。`, label: "録画を削除" },
+    delete: { title: "録画ファイルを削除しますか？", description: `「${recorded?.name ?? "この録画"}」から削除するファイルを選択してください。すべて選択すると番組情報も削除されます。この操作は元に戻せません。`, label: "選択したファイルを削除" },
     unprotect: { title: "保護を解除しますか？", description: "保護を解除すると、この録画は自動削除の対象になる可能性があります。", label: "保護を解除" },
     "stop-encode": { title: "エンコードを停止しますか？", description: "実行中のエンコードを停止します。途中の出力は利用できない場合があります。", label: "エンコードを停止" },
     "encode-remove": { title: "元ファイルを削除する設定で開始しますか？", description: "エンコード成功後に選択した元ファイルが削除されます。出力を確認するまで元ファイルを残す場合はキャンセルしてください。", label: "削除設定で開始" },
@@ -150,7 +165,20 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
 
   const performConfirmedAction = () => {
     if (!recorded || !confirmAction) return;
-    if (confirmAction === "delete") void runAction(() => apiClient.deleteRecorded(recordedId), "録画を削除しました。", () => router.replace("/recorded"));
+    if (confirmAction === "delete") {
+      const selectedFiles = files.filter((file) => deleteVideoFileIds.has(file.id));
+      if (selectedFiles.length === 0) return;
+      if (selectedFiles.length === files.length) {
+        void runAction(() => apiClient.deleteRecorded(recordedId), "録画を削除しました。", () => router.replace("/recorded"));
+      } else {
+        void runAction(
+          async () => {
+            for (const file of selectedFiles) await apiClient.deleteVideo(file.id);
+          },
+          `${selectedFiles.length} 件の録画ファイルを削除しました。`,
+        );
+      }
+    }
     if (confirmAction === "unprotect") void runAction(() => apiClient.unprotectRecorded(recordedId), "保護を解除しました。");
     if (confirmAction === "stop-encode") void runAction(() => apiClient.stopRecordedEncode(recordedId), "エンコードを停止しました。");
     if (confirmAction === "encode-remove") void submitEncode();
@@ -173,7 +201,7 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
                 <LockKeyhole aria-hidden="true" />保護
               </Button>
             )}
-            <Button type="button" variant="destructive" disabled={busy || recorded.isRecording} onClick={() => setConfirmAction("delete")}>
+            <Button type="button" variant="destructive" disabled={busy || recorded.isRecording || files.length === 0} onClick={openDeleteDialog}>
               <Trash2 aria-hidden="true" />削除
             </Button>
           </>
@@ -270,9 +298,30 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
         description={confirmAction ? confirmDetails[confirmAction].description : ""}
         confirmLabel={confirmAction ? confirmDetails[confirmAction].label : "実行"}
         busy={busy}
+        confirmDisabled={confirmAction === "delete" && deleteVideoFileIds.size === 0}
         onConfirm={performConfirmedAction}
         onCancel={() => setConfirmAction(null)}
-      />
+      >
+        {confirmAction === "delete" ? (
+          <fieldset className="mt-4 max-h-64 space-y-2 overflow-y-auto rounded-lg border bg-muted/40 p-3">
+            <legend className="sr-only">削除する録画ファイル</legend>
+            {files.map((file) => (
+              <label key={file.id} className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-muted">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
+                  checked={deleteVideoFileIds.has(file.id)}
+                  onChange={() => toggleDeleteVideoFile(file.id)}
+                />
+                <span className="min-w-0 text-sm">
+                  <span className="block truncate font-medium">{file.name}</span>
+                  <span className="block text-xs text-muted-foreground">{file.type === "ts" ? "元 TS" : "エンコード済み"} ・ {formatBytes(file.size)}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        ) : null}
+      </ConfirmDialog>
     </>
   );
 }

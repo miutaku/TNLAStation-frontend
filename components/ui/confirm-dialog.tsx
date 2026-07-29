@@ -11,6 +11,7 @@ export function ConfirmDialog({
   description,
   confirmLabel = "実行する",
   busy = false,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
   children,
@@ -20,6 +21,7 @@ export function ConfirmDialog({
   description: string;
   confirmLabel?: string;
   busy?: boolean;
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   /** 説明文とボタンの間に差し込む追加の内容。削除対象の一覧などを表示する用途。 */
@@ -89,7 +91,7 @@ export function ConfirmDialog({
         {children}
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>キャンセル</Button>
-          <Button type="button" variant="destructive" onClick={onConfirm} disabled={busy}>
+          <Button type="button" variant="destructive" onClick={onConfirm} disabled={busy || confirmDisabled}>
             {busy ? "処理中…" : confirmLabel}
           </Button>
         </div>

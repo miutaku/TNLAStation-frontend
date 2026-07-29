@@ -1,10 +1,11 @@
 "use client";
 
-import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
+import { RotateCcw, Search } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CollapsibleSearchPanel } from "@/components/collapsible-search-panel";
 import type { ChannelItem, Rule } from "@/lib/api/types";
 import { GENRE_ENTRIES } from "@/lib/format";
 
@@ -83,11 +84,8 @@ export function ProgramCollectionSearch({
   };
 
   return (
-    <form onSubmit={onSubmit} role="search" className="mb-5 min-w-0 glass-panel rounded-2xl p-4 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <SlidersHorizontal aria-hidden="true" className="size-4 text-primary" />
-        <h2 className="text-sm font-semibold">検索条件</h2>
-      </div>
+    <form onSubmit={onSubmit} role="search" className="mb-5 min-w-0">
+      <CollapsibleSearchPanel>
       <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="min-w-0 md:col-span-2">
           <label htmlFor={`${idPrefix}-keyword`} className="mb-2 block text-sm font-semibold">
@@ -104,6 +102,7 @@ export function ProgramCollectionSearch({
               value={value.keyword}
               onChange={(event) => update("keyword", event.target.value)}
               placeholder="キーワードを入力"
+              maxLength={255}
               className="pl-9"
             />
           </div>
@@ -175,6 +174,7 @@ export function ProgramCollectionSearch({
           検索
         </Button>
       </div>
+      </CollapsibleSearchPanel>
     </form>
   );
 }

@@ -13,9 +13,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { ValidationSummary } from "@/components/ui/validation-summary";
 import { apiClient } from "@/lib/api/client";
 import type { ChannelItem, Config } from "@/lib/api/types";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
+import { validateDateRange, validateRelativePath, validateRequiredText } from "@/lib/form-validation";
 
 const controlClassName = "h-10 min-w-0 w-full max-w-full rounded-lg border border-input bg-background/75 px-3 text-sm shadow-xs";
 
@@ -41,6 +43,7 @@ export function ManualReserveView() {
   const [removeOriginal, setRemoveOriginal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmRemoveOriginal, setConfirmRemoveOriginal] = useState(false);
+  const [validationAttempted, setValidationAttempted] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const loadOptions = useCallback(async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; config: Config }> => {
@@ -48,9 +51,20 @@ export function ManualReserveView() {
     return { channels, config };
   }, []);
   const resource = useApiResource(loadOptions);
+  const validationErrors = [
+    ...validateRequiredText(name, "番組名", 255),
+    ...(channelId ? [] : ["チャンネルを選択してください。"]),
+    ...validateDateRange(startAt, endAt),
+    ...validateRelativePath(directory, "サブディレクトリ"),
+  ];
 
   const submit = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
+    setValidationAttempted(true);
+    if (validationErrors.length > 0) {
+      setError(validationErrors[0]);
+      return;
+    }
     const startTimestamp = new Date(startAt).getTime();
     const endTimestamp = new Date(endAt).getTime();
     if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp) || endTimestamp <= startTimestamp) {
@@ -101,9 +115,10 @@ export function ManualReserveView() {
       {resource.error ? <ErrorState title="予約の選択肢を取得できませんでした" description={resource.error.message} onRetry={resource.reload} /> : null}
       {!resource.isLoading && resource.data?.channels.length === 0 ? <ErrorState title="予約できるチャンネルがありません" description="チャンネル設定を確認してください。" onRetry={resource.reload} /> : null}
       {resource.data && resource.data.channels.length > 0 ? (
-        <form onSubmit={submit} className="mx-auto max-w-3xl space-y-5">
+        <form onSubmit={submit} noValidate className="mx-auto max-w-3xl space-y-5">
           {message ? <Alert role="status" className="border-emerald-500/35"><AlertDescription className="flex items-center gap-2"><CheckCircle2 aria-hidden="true" className="size-4 text-emerald-600" />{message}</AlertDescription></Alert> : null}
           {error ? <Alert role="alert" className="border-destructive/40"><AlertDescription>{error}</AlertDescription></Alert> : null}
+          <ValidationSummary errors={validationAttempted ? validationErrors : []} />
           <Card className="">
             <CardHeader className="border-b"><CardTitle>録画する時間</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 gap-5 pt-5 sm:pt-6">
@@ -121,7 +136,7 @@ export function ManualReserveView() {
             <CardHeader className="border-b"><CardTitle>保存とエンコード（任意）</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 gap-5 pt-5 sm:grid-cols-2 sm:pt-6">
               <div><label htmlFor="manual-parent" className="mb-2 block text-sm font-semibold">保存先</label><select id="manual-parent" className={controlClassName} value={parentDirectoryName} onChange={(event) => setParentDirectoryName(event.target.value)}><option value="">既定の保存先</option>{resource.data.config.recorded.map((name) => <option key={name} value={name}>{name}</option>)}</select></div>
-              <div><label htmlFor="manual-directory" className="mb-2 block text-sm font-semibold">サブディレクトリ</label><Input id="manual-directory" value={directory} onChange={(event) => setDirectory(event.target.value)} placeholder="例: drama/2026" /></div>
+              <div><label htmlFor="manual-directory" className="mb-2 block text-sm font-semibold">サブディレクトリ</label><Input id="manual-directory" value={directory} onChange={(event) => setDirectory(event.target.value)} placeholder="例: drama/2026" maxLength={255} /></div>
               <div><label htmlFor="manual-encode" className="mb-2 block text-sm font-semibold">エンコード設定</label><select id="manual-encode" className={controlClassName} value={encodeMode} onChange={(event) => setEncodeMode(event.target.value)}><option value="">エンコードしない</option>{resource.data.config.encode.map((mode) => <option key={mode} value={mode}>{mode}</option>)}</select></div>
               <div className="flex items-center justify-between gap-4 glass-field rounded-lg border p-3"><span id="manual-remove-label" className="text-sm font-semibold">完了後に元ファイルを削除</span><Switch checked={removeOriginal} disabled={!encodeMode} aria-labelledby="manual-remove-label" onClick={() => setRemoveOriginal((value) => !value)} /></div>
             </CardContent>

@@ -7,11 +7,14 @@ import {
   hasAnySearchCondition,
   SearchConditionsForm,
   searchConditionsToOption,
+  validateSearchConditions,
   type SearchConditions,
 } from "@/components/search/search-conditions";
 import { ReserveEncodeOptions as ReserveEncodeOptionsFields } from "@/components/reserves/reserve-encode-options";
+import { CollapsibleSearchPanel } from "@/components/collapsible-search-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ValidationSummary } from "@/components/ui/validation-summary";
 import type {
   ChannelItem,
   Config,
@@ -180,7 +183,8 @@ export function RuleForm({
   onCancel: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
-  const canSubmit = hasAnySearchCondition(conditions);
+  const validationErrors = validateSearchConditions(conditions);
+  const canSubmit = hasAnySearchCondition(conditions) && validationErrors.length === 0;
   const isEdit = mode === "edit";
 
   return (
@@ -198,7 +202,10 @@ export function RuleForm({
         />
       </div>
 
-      <SearchConditionsForm conditions={conditions} onChange={onConditionsChange} channels={channels} />
+      <CollapsibleSearchPanel>
+        <SearchConditionsForm conditions={conditions} onChange={onConditionsChange} channels={channels} />
+        <div className="mt-5"><ValidationSummary errors={validationErrors} /></div>
+      </CollapsibleSearchPanel>
 
       <div className="mt-6 grid grid-cols-1 gap-4 border-t pt-5">
         <div className="min-w-0">

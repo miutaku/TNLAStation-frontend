@@ -80,6 +80,41 @@ export function hasAnySearchCondition(conditions: SearchConditions): boolean {
   );
 }
 
+export function validateSearchConditions(conditions: SearchConditions): string[] {
+  const errors: string[] = [];
+  if (conditions.keyword.trim() && !conditions.name && !conditions.description && !conditions.extended) {
+    errors.push("検索キーワードの対象を1つ以上選択してください。");
+  }
+  if (conditions.ignoreKeyword.trim() && !conditions.ignoreName && !conditions.ignoreDescription && !conditions.ignoreExtended) {
+    errors.push("除外キーワードの対象を1つ以上選択してください。");
+  }
+  if (conditions.keyRegExp && conditions.keyword.trim()) {
+    try {
+      new RegExp(conditions.keyword);
+    } catch {
+      errors.push("検索キーワードの正規表現が正しくありません。");
+    }
+  }
+  if (!Object.values(conditions.broadcasts).some(Boolean)) errors.push("放送波を1つ以上選択してください。");
+
+  const durationMin = toNumber(conditions.durationMin);
+  const durationMax = toNumber(conditions.durationMax);
+  if (conditions.durationMin.trim() && durationMin === undefined) errors.push("最小の長さを数値で入力してください。");
+  if (conditions.durationMax.trim() && durationMax === undefined) errors.push("最大の長さを数値で入力してください。");
+  if (durationMin !== undefined && durationMin < 0) errors.push("最小の長さは0分以上にしてください。");
+  if (durationMax !== undefined && durationMax < 0) errors.push("最大の長さは0分以上にしてください。");
+  if (durationMin !== undefined && durationMax !== undefined && durationMax < durationMin) {
+    errors.push("最大の長さは最小の長さ以上にしてください。");
+  }
+
+  if (Boolean(conditions.periodStart) !== Boolean(conditions.periodEnd)) {
+    errors.push("放送期間は開始と終了の両方を入力してください。");
+  } else if (conditions.periodStart && conditions.periodEnd && Date.parse(conditions.periodEnd) <= Date.parse(conditions.periodStart)) {
+    errors.push("放送期間の終了は開始より後にしてください。");
+  }
+  return errors;
+}
+
 function toWeekBitmask(weekdays: boolean[]): number {
   return weekdays.reduce((mask, on, index) => (on ? mask | (1 << index) : mask), 0);
 }
@@ -205,6 +240,7 @@ export function SearchConditionsForm({
             value={conditions.keyword}
             onChange={(event) => patch({ keyword: event.target.value })}
             placeholder="番組名や出演者"
+            maxLength={512}
             className="mt-2"
           />
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -226,6 +262,7 @@ export function SearchConditionsForm({
             value={conditions.ignoreKeyword}
             onChange={(event) => patch({ ignoreKeyword: event.target.value })}
             placeholder="結果から除外する語句"
+            maxLength={512}
             className="mt-2"
           />
           <TargetToggles

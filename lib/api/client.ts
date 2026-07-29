@@ -187,6 +187,10 @@ export class EpgStationApiClient {
     return this.requestVoid("DELETE", `/recorded/${recordedId}`, undefined, signal);
   }
 
+  deleteVideo(videoFileId: VideoFileId, signal?: AbortSignal): Promise<void> {
+    return this.requestVoid("DELETE", `/videos/${videoFileId}`, undefined, signal);
+  }
+
   /** ファイルが見つからない録画を DB から取り除く。削除できた件数を返す。 */
   async cleanupRecorded(signal?: AbortSignal): Promise<number> {
     const result = await this.post<{ removed: number }>("/recorded/cleanup", undefined, signal);

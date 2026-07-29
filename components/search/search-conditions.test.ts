@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SEARCH_CONDITIONS, searchConditionsToOption } from "./search-conditions";
+import { DEFAULT_SEARCH_CONDITIONS, searchConditionsToOption, validateSearchConditions } from "./search-conditions";
 
 describe("searchConditionsToOption", () => {
   it("does not send keyword target flags when the corresponding keyword is empty", () => {
@@ -28,5 +28,20 @@ describe("searchConditionsToOption", () => {
     expect(option.description).toBe(true);
     expect(option.ignoreName).toBe(true);
     expect(option.ignoreDescription).toBe(true);
+  });
+
+  it("validates regular expressions, ranges, and paired periods", () => {
+    const errors = validateSearchConditions({
+      ...DEFAULT_SEARCH_CONDITIONS,
+      keyword: "[",
+      keyRegExp: true,
+      durationMin: "60",
+      durationMax: "30",
+      periodStart: "2026-07-29T12:00",
+    });
+
+    expect(errors).toContain("検索キーワードの正規表現が正しくありません。");
+    expect(errors).toContain("最大の長さは最小の長さ以上にしてください。");
+    expect(errors).toContain("放送期間は開始と終了の両方を入力してください。");
   });
 });

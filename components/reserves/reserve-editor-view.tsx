@@ -12,10 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { ValidationSummary } from "@/components/ui/validation-summary";
 import { ApiError, apiClient } from "@/lib/api/client";
 import type { Config, ReserveId, ReserveItem } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
+import { validateRelativePath } from "@/lib/form-validation";
 
 const controlClassName = "h-10 min-w-0 w-full max-w-full rounded-lg border border-input bg-background/75 px-3 text-sm shadow-xs";
 
@@ -35,10 +37,17 @@ function LoadedReserveEditor({ reserve, config }: { reserve: ReserveItem; config
   const [encodeMode, setEncodeMode] = useState(reserve.encodeMode1 ?? "");
   const [removeOriginal, setRemoveOriginal] = useState(reserve.isDeleteOriginalAfterEncode);
   const [busy, setBusy] = useState(false);
+  const [validationAttempted, setValidationAttempted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const validationErrors = validateRelativePath(directory, "サブディレクトリ");
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setValidationAttempted(true);
+    if (validationErrors.length > 0) {
+      setError(validationErrors[0]);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -85,6 +94,7 @@ function LoadedReserveEditor({ reserve, config }: { reserve: ReserveItem; config
       />
       {error ? <Alert role="alert" className="mb-5 border-destructive/40"><AlertDescription>{error}</AlertDescription></Alert> : null}
       <form onSubmit={submit} className="mx-auto max-w-3xl space-y-5">
+        <ValidationSummary errors={validationAttempted ? validationErrors : []} />
         <Card>
           <CardHeader className="border-b"><CardTitle>{reserve.name}</CardTitle></CardHeader>
           <CardContent className="space-y-2 pt-5 text-sm sm:pt-6">
@@ -100,7 +110,7 @@ function LoadedReserveEditor({ reserve, config }: { reserve: ReserveItem; config
               <Switch checked={allowEndLack} aria-labelledby="edit-end-lack-label" onClick={() => setAllowEndLack((value) => !value)} />
             </div>
             <div><label htmlFor="edit-parent" className="mb-2 block text-sm font-semibold">保存先</label><select id="edit-parent" className={controlClassName} value={parentDirectoryName} onChange={(event) => setParentDirectoryName(event.target.value)}><option value="">既定の保存先</option>{config.recorded.map((name) => <option key={name} value={name}>{name}</option>)}</select></div>
-            <div><label htmlFor="edit-directory" className="mb-2 block text-sm font-semibold">サブディレクトリ</label><Input id="edit-directory" value={directory} onChange={(event) => setDirectory(event.target.value)} /></div>
+            <div><label htmlFor="edit-directory" className="mb-2 block text-sm font-semibold">サブディレクトリ</label><Input id="edit-directory" value={directory} onChange={(event) => setDirectory(event.target.value)} maxLength={255} /></div>
             <div><label htmlFor="edit-encode" className="mb-2 block text-sm font-semibold">エンコード設定</label><select id="edit-encode" className={controlClassName} value={encodeMode} onChange={(event) => setEncodeMode(event.target.value)}><option value="">エンコードしない</option>{config.encode.map((mode) => <option key={mode} value={mode}>{mode}</option>)}</select></div>
             <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted p-3"><span id="edit-remove-label" className="text-sm font-semibold">完了後に元ファイルを削除</span><Switch checked={removeOriginal} disabled={!encodeMode} aria-labelledby="edit-remove-label" onClick={() => setRemoveOriginal((value) => !value)} /></div>
           </CardContent>

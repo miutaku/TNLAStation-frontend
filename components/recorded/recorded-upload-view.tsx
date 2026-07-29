@@ -11,9 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ValidationSummary } from "@/components/ui/validation-summary";
 import { apiClient } from "@/lib/api/client";
 import type { ChannelItem, Config, VideoFileType } from "@/lib/api/types";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
+import { validateDateRange, validateRelativePath, validateRequiredText } from "@/lib/form-validation";
 
 const controlClassName = "h-10 min-w-0 w-full max-w-full rounded-lg border border-input bg-background/75 px-3 text-sm shadow-xs";
 
@@ -34,6 +36,7 @@ export function RecordedUploadView() {
   const [fileType, setFileType] = useState<VideoFileType>("ts");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [validationAttempted, setValidationAttempted] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const loadOptions = useCallback(async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; config: Config }> => {
@@ -41,11 +44,21 @@ export function RecordedUploadView() {
     return { channels, config };
   }, []);
   const resource = useApiResource(loadOptions);
+  const validationErrors = [
+    ...validateRequiredText(name, "番組名", 255),
+    ...(channelId ? [] : ["チャンネルを選択してください。"]),
+    ...validateDateRange(startAt, endAt),
+    ...(file ? [] : ["アップロードするファイルを選択してください。"]),
+    ...(parentDirectoryName ? [] : ["保存先を選択してください。"]),
+    ...validateRelativePath(subDirectory, "サブディレクトリ"),
+    ...validateRequiredText(viewName, "表示名", 255),
+  ];
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!file) {
-      setError("アップロードするファイルを選択してください。");
+    setValidationAttempted(true);
+    if (validationErrors.length > 0 || !file) {
+      setError(validationErrors[0] ?? "アップロードするファイルを選択してください。");
       return;
     }
     const startTimestamp = new Date(startAt).getTime();
@@ -105,13 +118,14 @@ export function RecordedUploadView() {
       {resource.isLoading ? <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-24 w-full" /><Skeleton className="h-96 w-full" /></div> : null}
       {resource.error ? <ErrorState title="登録に必要な情報を取得できませんでした" description={resource.error.message} onRetry={resource.reload} /> : null}
       {resource.data ? (
-        <form onSubmit={submit} className="mx-auto max-w-3xl space-y-5">
+        <form onSubmit={submit} noValidate className="mx-auto max-w-3xl space-y-5">
           {message ? <Alert role="status" className="border-emerald-500/35"><AlertDescription className="flex items-center gap-2"><CheckCircle2 aria-hidden="true" className="size-4 text-emerald-600" />{message}</AlertDescription></Alert> : null}
           {error ? <Alert role="alert" className="border-destructive/40"><AlertDescription>{error}</AlertDescription></Alert> : null}
+          <ValidationSummary errors={validationAttempted ? validationErrors : []} />
           <Card className="">
             <CardHeader className="border-b"><CardTitle>番組情報</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 gap-5 pt-5 sm:pt-6">
-              <div><label htmlFor="upload-name" className="mb-2 block text-sm font-semibold">番組名</label><Input id="upload-name" value={name} onChange={(event) => setName(event.target.value)} required /></div>
+              <div><label htmlFor="upload-name" className="mb-2 block text-sm font-semibold">番組名</label><Input id="upload-name" value={name} onChange={(event) => setName(event.target.value)} required maxLength={255} /></div>
               <div><label htmlFor="upload-description" className="mb-2 block text-sm font-semibold">概要（任意）</label><textarea id="upload-description" className="min-h-24 w-full rounded-lg border border-input bg-background/75 px-3 py-2 text-sm shadow-xs" value={description} onChange={(event) => setDescription(event.target.value)} /></div>
               <div><label htmlFor="upload-channel" className="mb-2 block text-sm font-semibold">チャンネル</label><select id="upload-channel" className={controlClassName} value={channelId} onChange={(event) => setChannelId(event.target.value)} required><option value="">選択してください</option>{resource.data.channels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name} ({channel.channelType})</option>)}</select></div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="min-w-0"><label htmlFor="upload-start" className="mb-2 block text-sm font-semibold">開始日時</label><Input id="upload-start" type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} required /></div><div className="min-w-0"><label htmlFor="upload-end" className="mb-2 block text-sm font-semibold">終了日時</label><Input id="upload-end" type="datetime-local" value={endAt} min={startAt} onChange={(event) => setEndAt(event.target.value)} required /></div></div>
@@ -123,12 +137,12 @@ export function RecordedUploadView() {
             <CardContent className="grid grid-cols-1 gap-5 pt-5 sm:grid-cols-2 sm:pt-6">
               <div className="sm:col-span-2"><label htmlFor="upload-file" className="mb-2 block text-sm font-semibold">ファイル</label><Input id="upload-file" type="file" required onChange={(event) => { const selected = event.target.files?.[0] ?? null; setFile(selected); if (selected && !viewName) setViewName(selected.name); }} /></div>
               <div><label htmlFor="upload-parent" className="mb-2 block text-sm font-semibold">保存先</label><select id="upload-parent" className={controlClassName} value={parentDirectoryName} onChange={(event) => setParentDirectoryName(event.target.value)} required><option value="">選択してください</option>{resource.data.config.recorded.map((directory) => <option key={directory} value={directory}>{directory}</option>)}</select></div>
-              <div><label htmlFor="upload-subdir" className="mb-2 block text-sm font-semibold">サブディレクトリ（任意）</label><Input id="upload-subdir" value={subDirectory} onChange={(event) => setSubDirectory(event.target.value)} /></div>
-              <div><label htmlFor="upload-view-name" className="mb-2 block text-sm font-semibold">表示名</label><Input id="upload-view-name" value={viewName} onChange={(event) => setViewName(event.target.value)} required /></div>
+              <div><label htmlFor="upload-subdir" className="mb-2 block text-sm font-semibold">サブディレクトリ（任意）</label><Input id="upload-subdir" value={subDirectory} onChange={(event) => setSubDirectory(event.target.value)} maxLength={255} /></div>
+              <div><label htmlFor="upload-view-name" className="mb-2 block text-sm font-semibold">表示名</label><Input id="upload-view-name" value={viewName} onChange={(event) => setViewName(event.target.value)} required maxLength={255} /></div>
               <div><label htmlFor="upload-file-type" className="mb-2 block text-sm font-semibold">ファイル種別</label><select id="upload-file-type" className={controlClassName} value={fileType} onChange={(event) => setFileType(event.target.value as VideoFileType)}><option value="ts">TS（元ファイル）</option><option value="encoded">エンコード済み</option></select></div>
             </CardContent>
           </Card>
-          <div className="flex justify-end"><Button type="submit" size="lg" disabled={submitting || !file}><Upload aria-hidden="true" />{submitting ? "アップロード中…" : "登録してアップロード"}</Button></div>
+          <div className="flex justify-end"><Button type="submit" size="lg" disabled={submitting}><Upload aria-hidden="true" />{submitting ? "アップロード中…" : "登録してアップロード"}</Button></div>
         </form>
       ) : null}
     </>
