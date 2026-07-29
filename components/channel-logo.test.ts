@@ -14,6 +14,6 @@ describe("ChannelLogo", () => {
     expect(markup).toContain("h-auto");
     expect(markup).toContain("w-16");
     expect(markup).not.toContain("size-9");
-    expect(markup).not.toContain("rounded-");
+    expect(markup).toContain("rounded-[2px]");
   });
 });

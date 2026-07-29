@@ -20,7 +20,7 @@ export function ChannelLogo({
   const [failed, setFailed] = useState(false);
 
   return (
-    <span className={cn("grid aspect-video h-auto w-16 shrink-0 place-items-center overflow-hidden bg-muted/60", className)}>
+    <span className={cn("grid aspect-video h-auto w-16 shrink-0 place-items-center overflow-hidden rounded-[2px] bg-muted/60", className)}>
       {channel.hasLogoData && !failed ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
