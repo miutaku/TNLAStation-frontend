@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { Info, MonitorCog, RotateCcw, SlidersHorizontal, Smartphone, Tv } from "lucide-react";
+import { ExternalLink, Info, MonitorCog, RotateCcw, SlidersHorizontal, Smartphone, Tv } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { GuideDimensionSettings } from "@/components/guide/guide-dimension-settings";
@@ -295,6 +295,16 @@ export function SettingsView() {
             </div>
           </CardContent>
         </Card>
+
+        <div className="flex flex-col gap-2 px-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <span>API仕様やリクエストを確認する開発者向け画面です。</span>
+          <Button asChild variant="ghost" size="sm">
+            <a href={apiClient.swaggerUrl()} target="_blank" rel="noreferrer">
+              Swagger UIを開く
+              <ExternalLink aria-hidden="true" />
+            </a>
+          </Button>
+        </div>
       </div>
     </>
   );

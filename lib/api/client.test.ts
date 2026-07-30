@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ApiError, appendQuery, EpgStationApiClient } from "./client";
+import { ApiError, appendQuery, EpgStationApiClient, swaggerUrlFromApiBase } from "./client";
 import {
   channelsFixture,
   encodeFixture,
@@ -16,6 +16,16 @@ describe("appendQuery", () => {
   it("keeps false and zero while skipping empty values", () => {
     expect(appendQuery("/api/reserves", { isHalfWidth: false, offset: 0, keyword: "", type: undefined })).toBe(
       "/api/reserves?isHalfWidth=false&offset=0",
+    );
+  });
+});
+
+describe("swaggerUrlFromApiBase", () => {
+  it("builds Swagger UI URLs for default, subdirectory, and cross-origin API bases", () => {
+    expect(swaggerUrlFromApiBase("/api")).toBe("/api-docs/?url=/api/docs");
+    expect(swaggerUrlFromApiBase("/epg/api/")).toBe("/epg/api-docs/?url=/epg/api/docs");
+    expect(swaggerUrlFromApiBase("https://tv.example.com/api")).toBe(
+      "https://tv.example.com/api-docs/?url=https://tv.example.com/api/docs",
     );
   });
 });

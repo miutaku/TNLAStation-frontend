@@ -59,6 +59,14 @@ function normalizeBaseUrl(baseUrl: string): string {
   return normalized === "/" ? "" : normalized.replace(/\/+$/, "");
 }
 
+export function swaggerUrlFromApiBase(baseUrl: string): string {
+  const normalized = normalizeBaseUrl(baseUrl);
+  if (!normalized.endsWith("/api")) return `${normalized}/api-docs`;
+
+  const applicationRoot = normalized.slice(0, -"/api".length);
+  return `${applicationRoot}/api-docs/?url=${normalized}/docs`;
+}
+
 export function appendQuery(path: string, query?: Query): string {
   if (!query) return path;
   const searchParams = new URLSearchParams();
@@ -273,6 +281,10 @@ export class EpgStationApiClient {
       backend: "other",
       backendVersion: compatibility.version,
     };
+  }
+
+  swaggerUrl(): string {
+    return swaggerUrlFromApiBase(this.baseUrl);
   }
 
   getSchedules(options: ScheduleOptions, signal?: AbortSignal): Promise<Schedule[]> {
