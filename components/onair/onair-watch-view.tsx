@@ -60,7 +60,7 @@ export function OnAirWatchView({ channelId, streamType, mode }: { channelId: num
         eyebrow="Live playback"
         title={title}
         description={`${resource.data?.channel?.name ?? "放送局を確認中"} ・ ${streamType.toUpperCase()} モード ${mode}`}
-        actions={<><Button asChild variant="ghost"><Link href="/onair"><ArrowLeft aria-hidden="true" />放映中へ戻る</Link></Button><Button type="button" variant="destructive" onClick={() => setConfirmStop(true)} disabled={stopping}><CircleStop aria-hidden="true" />視聴を終了</Button></>}
+        actions={<><Button asChild variant="ghost"><Link href="/onair"><ArrowLeft aria-hidden="true" />放送中へ戻る</Link></Button><Button type="button" variant="destructive" onClick={() => setConfirmStop(true)} disabled={stopping}><CircleStop aria-hidden="true" />視聴を終了</Button></>}
       />
       <div className="mx-auto max-w-6xl">
         {stopError ? <Alert role="alert" className="mb-4 border-destructive/40"><AlertDescription>{stopError}</AlertDescription></Alert> : null}

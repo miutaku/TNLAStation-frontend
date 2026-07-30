@@ -264,7 +264,7 @@ export class EpgStationApiClient {
     return this.get<Schedule[]>("/schedules", options as unknown as Query, signal);
   }
 
-  /** 各放送局でいま流れている番組。放映中の一覧はこれで作る。 */
+  /** 各放送局でいま流れている番組。放送中の一覧はこれで作る。 */
   getBroadcastingSchedules(isHalfWidth: boolean, signal?: AbortSignal): Promise<Schedule[]> {
     return this.get<Schedule[]>("/schedules/broadcasting", { isHalfWidth }, signal);
   }

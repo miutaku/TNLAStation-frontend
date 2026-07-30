@@ -100,6 +100,21 @@ export function groupOnAirChannels(channels: readonly ChannelItem[]): OnAirChann
   }));
 }
 
+export function isOnAirChannelSelectable(
+  group: OnAirChannelGroup,
+  channelId: number,
+  programsByChannel: ReadonlyMap<number, ScheduleProgramItem>,
+): boolean {
+  return group.channels[0]?.id === channelId || programsByChannel.has(channelId);
+}
+
+export function selectableOnAirChannels(
+  group: OnAirChannelGroup,
+  programsByChannel: ReadonlyMap<number, ScheduleProgramItem>,
+): ChannelItem[] {
+  return group.channels.filter((channel) => isOnAirChannelSelectable(group, channel.id, programsByChannel));
+}
+
 function channelDisplayName(channel: ChannelItem, halfWidth: boolean): string {
   return halfWidth ? channel.halfWidthName : channel.name;
 }
@@ -136,8 +151,11 @@ export function OnAirChannelGroupCard({
   onWatch: (channel: ChannelItem) => void;
 }) {
   const [selectedChannelId, setSelectedChannelId] = useState(group.channels[0]?.id);
-  const channel = group.channels.find((candidate) => candidate.id === selectedChannelId) ?? group.channels[0];
+  const selectableChannels = selectableOnAirChannels(group, programsByChannel);
+  const selectedChannel = selectableChannels.find((candidate) => candidate.id === selectedChannelId);
+  const channel = selectedChannel ?? selectableChannels[0];
   if (!channel) return null;
+  if (selectedChannel && selectedChannel.id !== channel.id) setSelectedChannelId(channel.id);
 
   const program = programsByChannel.get(channel.id);
   const stream = streamsByChannel.get(channel.id);
@@ -166,12 +184,12 @@ export function OnAirChannelGroupCard({
               </div>
             </button>
             <div className="flex flex-wrap justify-end gap-2">
-              {group.channels.length > 1 ? <Badge variant="outline">{group.channels.length} サービス</Badge> : null}
+              {selectableChannels.length > 1 ? <Badge variant="outline">{selectableChannels.length} 放送中サービス</Badge> : null}
               {stream ? <Badge variant="success"><Activity aria-hidden="true" />視聴中</Badge> : null}
             </div>
           </div>
 
-          {group.channels.length > 1 ? (
+          {selectableChannels.length > 1 ? (
             <div className="mt-4 min-w-0 rounded-lg bg-muted/60 p-2.5">
               <label htmlFor={selectorId} className="mb-1.5 block text-xs font-semibold text-muted-foreground">
                 サブチャンネル
@@ -182,9 +200,9 @@ export function OnAirChannelGroupCard({
                 value={channel.id}
                 onChange={(event) => setSelectedChannelId(Number(event.target.value))}
               >
-                {group.channels.map((candidate) => (
+                {selectableChannels.map((candidate) => (
                   <option key={candidate.id} value={candidate.id}>
-                    {channelOptionLabel(candidate, group.channels, halfWidth)}
+                    {channelOptionLabel(candidate, selectableChannels, halfWidth)}
                   </option>
                 ))}
               </select>
@@ -240,8 +258,11 @@ export function OnAirChannelGroupRow({
   columns?: TableColumnVisibilityState<OnAirTableColumn>;
 }) {
   const [selectedChannelId, setSelectedChannelId] = useState(group.channels[0]?.id);
-  const channel = group.channels.find((candidate) => candidate.id === selectedChannelId) ?? group.channels[0];
+  const selectableChannels = selectableOnAirChannels(group, programsByChannel);
+  const selectedChannel = selectableChannels.find((candidate) => candidate.id === selectedChannelId);
+  const channel = selectedChannel ?? selectableChannels[0];
   if (!channel) return null;
+  if (selectedChannel && selectedChannel.id !== channel.id) setSelectedChannelId(channel.id);
 
   const program = programsByChannel.get(channel.id);
   const stream = streamsByChannel.get(channel.id);
@@ -270,7 +291,7 @@ export function OnAirChannelGroupRow({
           </div>
         );
       case "service":
-        return group.channels.length > 1 ? (
+        return selectableChannels.length > 1 ? (
           <>
             <label htmlFor={selectorId} className="sr-only">サブチャンネル</label>
             <select
@@ -279,9 +300,9 @@ export function OnAirChannelGroupRow({
               value={channel.id}
               onChange={(event) => setSelectedChannelId(Number(event.target.value))}
             >
-              {group.channels.map((candidate) => (
+              {selectableChannels.map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
-                  {channelOptionLabel(candidate, group.channels, halfWidth)}
+                  {channelOptionLabel(candidate, selectableChannels, halfWidth)}
                 </option>
               ))}
             </select>
@@ -334,7 +355,7 @@ export function OnAirChannelGroupRow({
 
 export function OnAirView() {
   const [broadcast, setBroadcast] = useState<BroadcastFilter>("ALL");
-  const [currentTime, setCurrentTime] = useState(0);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [reserveTarget, setReserveTarget] = useState<{ program: ScheduleProgramItem; channelName: string } | null>(null);
   const [watchChannel, setWatchChannel] = useState<{ id: number; name: string } | null>(null);
   const { preferences } = usePreferences();
@@ -372,9 +393,12 @@ export function OnAirView() {
   const streamsByChannel = useMemo(() => new Map(liveStreams.map((stream) => [stream.channelId, stream])), [liveStreams]);
   const programsByChannel = useMemo(
     () => new Map((resource.data?.schedules ?? [])
-      .filter((schedule) => schedule.programs.length > 0)
-      .map((schedule) => [schedule.channel.id, schedule.programs[0]])),
-    [resource.data?.schedules],
+      .map((schedule) => [
+        schedule.channel.id,
+        schedule.programs.find((program) => program.startAt <= currentTime && currentTime < program.endAt),
+      ] as const)
+      .filter((entry): entry is readonly [number, ScheduleProgramItem] => entry[1] !== undefined)),
+    [currentTime, resource.data?.schedules],
   );
   const channels = useMemo(
     () => resource.data?.channels.filter((channel) => broadcast === "ALL" || channel.channelType === broadcast) ?? [],
@@ -387,7 +411,7 @@ export function OnAirView() {
     <>
       <PageHeader
         eyebrow="Live channels"
-        title="放映中"
+        title="放送中"
         description="視聴可能な放送局と、現在稼働しているライブストリームを確認できます。"
         actions={
           <Button type="button" variant="ghost" onClick={resource.revalidate} disabled={resource.isRefreshing}>
@@ -422,7 +446,7 @@ export function OnAirView() {
             </>
           ) : null}
           {viewMode === "list" ? <TableColumnVisibilityMenu state={tableColumns} label="放送中一覧の列" /> : null}
-          <CollectionViewToggle value={viewMode} onChange={setViewMode} label="放映中一覧の表示形式" />
+          <CollectionViewToggle value={viewMode} onChange={setViewMode} label="放送中一覧の表示形式" />
         </div>
       </div>
 

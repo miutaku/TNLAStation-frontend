@@ -10,6 +10,25 @@ import { cn } from "@/lib/utils";
 
 const MORE_ID = "__more__";
 
+export function resolveActiveBottomTab({
+  pathname,
+  primaryHrefs,
+  secondaryHrefs,
+  moreOpen,
+  pendingSecondaryHref,
+}: {
+  pathname: string;
+  primaryHrefs: readonly string[];
+  secondaryHrefs: readonly string[];
+  moreOpen: boolean;
+  pendingSecondaryHref: string | null;
+}): string {
+  if (moreOpen || pendingSecondaryHref !== null || secondaryHrefs.some((href) => isActivePath(href, pathname))) {
+    return MORE_ID;
+  }
+  return primaryHrefs.find((href) => isActivePath(href, pathname)) ?? "/";
+}
+
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -35,10 +54,12 @@ const SQUASH_DURATION_MS = 260;
 
 export function GlassTabBar({
   moreOpen,
+  pendingSecondaryHref,
   onOpenMore,
   onNavigate,
 }: {
   moreOpen: boolean;
+  pendingSecondaryHref: string | null;
   onOpenMore: () => void;
   onNavigate: () => void;
 }) {
@@ -62,10 +83,13 @@ export function GlassTabBar({
     [primaryNavigation],
   );
 
-  const isSecondaryActive = secondaryNavigation.some((item) => isActivePath(item.href, pathname));
-  const active = moreOpen || isSecondaryActive
-    ? MORE_ID
-    : primaryNavigation.find((item) => isActivePath(item.href, pathname))?.href ?? "/";
+  const active = resolveActiveBottomTab({
+    pathname,
+    primaryHrefs: primaryNavigation.map((item) => item.href),
+    secondaryHrefs: secondaryNavigation.map((item) => item.href),
+    moreOpen,
+    pendingSecondaryHref,
+  });
 
   const glassRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLSpanElement>(null);

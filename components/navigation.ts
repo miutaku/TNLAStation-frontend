@@ -25,7 +25,7 @@ export interface NavigationItem {
  */
 export const navigation: readonly NavigationItem[] = [
   { href: "/", label: "ホーム", icon: LayoutDashboard },
-  { href: "/onair", label: "放映中", icon: Tv },
+  { href: "/onair", label: "放送中", icon: Tv },
   { href: "/guide", label: "番組表", icon: Radio },
   { href: "/recording", label: "録画中", icon: CircleDot },
   { href: "/recorded", label: "録画済み", icon: MonitorPlay },

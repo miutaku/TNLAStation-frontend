@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { parseTranslateX } from "./glass-tab-bar";
+import { parseTranslateX, resolveActiveBottomTab } from "./glass-tab-bar";
 
 /**
  * このプロジェクトの vitest は environment: "node" (jsdom なし) で動くため、
@@ -58,5 +58,37 @@ describe("parseTranslateX", () => {
   it("falls back to null when DOMMatrixReadOnly itself is unavailable", () => {
     vi.unstubAllGlobals();
     expect(parseTranslateX("matrix(1, 0, 0, 1, 10, 0)")).toBeNull();
+  });
+});
+
+describe("resolveActiveBottomTab", () => {
+  const navigation = {
+    primaryHrefs: ["/", "/guide", "/recorded", "/reserves"],
+    secondaryHrefs: ["/onair", "/search", "/settings"],
+    moreOpen: false,
+  } as const;
+
+  it("keeps the more indicator selected while a secondary page navigation is pending", () => {
+    expect(resolveActiveBottomTab({
+      ...navigation,
+      pathname: "/guide",
+      pendingSecondaryHref: "/settings",
+    })).toBe("__more__");
+  });
+
+  it("uses the destination pathname after secondary navigation is confirmed", () => {
+    expect(resolveActiveBottomTab({
+      ...navigation,
+      pathname: "/settings",
+      pendingSecondaryHref: null,
+    })).toBe("__more__");
+  });
+
+  it("uses the current primary page when no secondary navigation is pending", () => {
+    expect(resolveActiveBottomTab({
+      ...navigation,
+      pathname: "/guide",
+      pendingSecondaryHref: null,
+    })).toBe("/guide");
   });
 });

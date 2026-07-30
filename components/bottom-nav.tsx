@@ -17,7 +17,9 @@ import { cn } from "@/lib/utils";
  */
 export function BottomNav() {
   const pathname = usePathname();
+  const [lastPathname, setLastPathname] = useState(pathname);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [pendingSecondaryHref, setPendingSecondaryHref] = useState<string | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const closeSheet = useCallback(() => setSheetOpen(false), []);
   const { preferences } = usePreferences();
@@ -25,6 +27,13 @@ export function BottomNav() {
     () => secondaryNavigationFor(preferences.bottomBarItems),
     [preferences.bottomBarItems],
   );
+
+  // pathname が変わったレンダーは破棄して、楽観状態を消した値ですぐ再レンダーする。
+  // effect で後から消すと、遷移先確定後にも1フレーム古い選択状態が見えてしまう。
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname);
+    setPendingSecondaryHref(null);
+  }
 
   useFocusTrap(sheetRef, sheetOpen, closeSheet);
 
@@ -66,7 +75,10 @@ export function BottomNav() {
                     key={item.href}
                     href={item.href}
                     aria-current={active ? "page" : undefined}
-                    onClick={closeSheet}
+                    onClick={() => {
+                      setPendingSecondaryHref(item.href);
+                      closeSheet();
+                    }}
                     className={cn(
                       "press-spring flex min-h-12 items-center gap-3 rounded-2xl px-3 text-sm font-medium",
                       active ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-secondary",
@@ -85,8 +97,12 @@ export function BottomNav() {
       <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-50 px-3 lg:hidden">
         <GlassTabBar
           moreOpen={sheetOpen}
+          pendingSecondaryHref={pendingSecondaryHref}
           onOpenMore={() => setSheetOpen((open) => !open)}
-          onNavigate={closeSheet}
+          onNavigate={() => {
+            setPendingSecondaryHref(null);
+            closeSheet();
+          }}
         />
       </div>
     </>

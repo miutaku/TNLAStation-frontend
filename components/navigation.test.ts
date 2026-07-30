@@ -32,6 +32,7 @@ describe("navigation", () => {
       "/settings",
     ]);
     expect(new Set(hrefs).size).toBe(hrefs.length);
+    expect(navigation.find((item) => item.href === "/onair")?.label).toBe("放送中");
   });
 
   it("orders primary items by the caller's chosen href order, not the canonical order", () => {

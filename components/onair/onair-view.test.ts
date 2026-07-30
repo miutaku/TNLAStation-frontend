@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ChannelItem, LiveStreamInfoItem, ScheduleProgramItem } from "@/lib/api/types";
 import type { TableColumnVisibilityState } from "@/components/table-column-visibility";
 
-import { groupOnAirChannels, OnAirChannelGroupCard, OnAirChannelGroupRow } from "./onair-view";
+import { groupOnAirChannels, isOnAirChannelSelectable, OnAirChannelGroupCard, OnAirChannelGroupRow, selectableOnAirChannels } from "./onair-view";
 
 function channel(overrides: Partial<ChannelItem> & Pick<ChannelItem, "id" | "serviceId">): ChannelItem {
   return {
@@ -43,6 +43,19 @@ describe("on-air channel groups", () => {
     expect(groups).toHaveLength(2);
     expect(groups[0].channels.map((item) => item.id)).toEqual([2, 1]);
     expect(groups[1].channels.map((item) => item.id)).toEqual([3]);
+  });
+
+  it("allows the main service but disables subchannels without a current program", () => {
+    const main = channel({ id: 1, serviceId: 101 });
+    const activeSub = channel({ id: 2, serviceId: 102 });
+    const inactiveSub = channel({ id: 3, serviceId: 103 });
+    const group = groupOnAirChannels([inactiveSub, activeSub, main])[0];
+    const programs = new Map([[activeSub.id, program(activeSub.id, "サブ番組")]]);
+
+    expect(isOnAirChannelSelectable(group, main.id, programs)).toBe(true);
+    expect(isOnAirChannelSelectable(group, activeSub.id, programs)).toBe(true);
+    expect(isOnAirChannelSelectable(group, inactiveSub.id, programs)).toBe(false);
+    expect(selectableOnAirChannels(group, programs).map((item) => item.id)).toEqual([main.id, activeSub.id]);
   });
 
   it("uses the physical channel and normalized station name for services without a remote key", () => {
@@ -122,6 +135,27 @@ describe("on-air channel groups", () => {
     expect(markup).toContain("メイン番組");
     expect(markup).not.toContain("サブ番組");
     expect(markup).toContain("視聴中");
+  });
+
+  it("does not render inactive subchannels in the selector", () => {
+    const main = channel({ id: 1, serviceId: 101 });
+    const sub = channel({ id: 2, serviceId: 102 });
+    const group = groupOnAirChannels([sub, main])[0];
+    const markup = renderToStaticMarkup(
+      createElement(OnAirChannelGroupCard, {
+        group,
+        programsByChannel: new Map([[main.id, program(main.id, "メイン番組")]]),
+        streamsByChannel: new Map(),
+        currentTime: 31_000,
+        halfWidth: false,
+        viewMode: "cards",
+        onReserve: vi.fn(),
+        onWatch: vi.fn(),
+      }),
+    );
+
+    expect(markup).not.toContain("<select");
+    expect(markup).not.toContain('value="2"');
   });
 
   it("renders the station logo and station name in separate table cells", () => {
