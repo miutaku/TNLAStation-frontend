@@ -1,5 +1,10 @@
 # TNLAStation Frontend
 
+[![CI](https://github.com/miutaku/TNLAStation-frontend/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/miutaku/TNLAStation-frontend/actions/workflows/ci.yml)
+[![Release](https://github.com/miutaku/TNLAStation-frontend/actions/workflows/release.yml/badge.svg)](https://github.com/miutaku/TNLAStation-frontend/actions/workflows/release.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/miutaku/TNLAStation-frontend)](https://github.com/miutaku/TNLAStation-frontend/releases/latest)
+[![License](https://img.shields.io/github/license/miutaku/TNLAStation-frontend)](LICENSE)
+
 [EPGStation](https://github.com/l3tnun/EPGStation) 互換の Web API を話すバックエンドを利用する、TNLAStation の Web フロントエンドです  
 標準では [TNLAStation Backend](https://github.com/miutaku/TNLAStation-backend) を想定していますが、API 仕様が同じなので EPGStation 本体をバックエンドにしてもおそらく動作します  
 iOS・Android・PC のいずれでも快適に使えるモバイルフレンドリーな UI が特徴です  
