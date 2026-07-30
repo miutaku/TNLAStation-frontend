@@ -27,15 +27,36 @@ describe("EpgStationApiClient", () => {
       requested.push(String(input));
       return new Response(JSON.stringify(String(input).endsWith("/version") ? { version: "3.0.0" } : {}), {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(String(input).endsWith("/version") ? { "X-TNLAStation-Version": "1.2.3" } : {}),
+        },
       });
     });
     const client = new EpgStationApiClient({ baseUrl: "/api", fetcher });
 
     await client.getConfig();
-    await client.getVersion();
+    await expect(client.getVersion()).resolves.toEqual({
+      backend: "tnlastation",
+      backendVersion: "1.2.3",
+      version: "3.0.0",
+    });
 
     expect(requested).toEqual(["/api/config", "/api/version"]);
+  });
+
+  it("identifies an unknown compatible backend when the TNLAStation version header is absent", async () => {
+    const fetcher = vi.fn(async () => new Response(
+      JSON.stringify({ version: "2.10.0" }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ));
+    const client = new EpgStationApiClient({ baseUrl: "/api", fetcher });
+
+    await expect(client.getVersion()).resolves.toEqual({
+      backend: "other",
+      backendVersion: "2.10.0",
+      version: "2.10.0",
+    });
   });
 
   it("requests reserves with the reference API query shape", async () => {

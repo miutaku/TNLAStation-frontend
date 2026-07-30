@@ -390,6 +390,9 @@ export interface AddManualEncodeProgramOptions {
 }
 
 export interface VersionInfo {
+  backend: "other" | "tnlastation";
+  backendVersion: string;
+  /** EPGStation互換APIとして返されるバージョン。 */
   version: string;
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { MonitorCog, RotateCcw, SlidersHorizontal, Smartphone, Tv } from "lucide-react";
+import { useCallback } from "react";
+import { Info, MonitorCog, RotateCcw, SlidersHorizontal, Smartphone, Tv } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { GuideDimensionSettings } from "@/components/guide/guide-dimension-settings";
@@ -10,6 +11,10 @@ import { GlassOpacitySettings } from "@/components/settings/glass-opacity-settin
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { displayVersion, frontendVersion } from "@/lib/app-version";
+import { apiClient } from "@/lib/api/client";
+import type { VersionInfo } from "@/lib/api/types";
+import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { usePreferences } from "@/lib/hooks/use-preferences";
 import { GUIDE_LENGTH_OPTIONS, type AppPreferences, type ThemePreference } from "@/lib/preferences";
 
@@ -76,9 +81,24 @@ function SelectRow<T extends string | number>({
 
 export function SettingsView() {
   const { preferences, updatePreferences, resetPreferences } = usePreferences();
+  const loadVersion = useCallback(
+    (signal: AbortSignal): Promise<VersionInfo> => apiClient.getVersion(signal),
+    [],
+  );
+  const version = useApiResource(loadVersion);
 
   const numberOptions = <T extends number>(values: readonly T[]): { value: T; label: string }[] =>
     values.map((value) => ({ value, label: `${value}件` }));
+  const backendName = version.data?.backend === "tnlastation"
+    ? "TNLAStation Backend"
+    : version.data?.backend === "other"
+      ? "その他の互換バックエンド"
+      : "Backend";
+  const backendVersionLabel = version.data
+    ? displayVersion(version.data.backendVersion)
+    : version.isLoading
+      ? "取得中…"
+      : "取得できません";
 
   return (
     <>
@@ -251,6 +271,28 @@ export function SettingsView() {
               value={preferences.bottomBarItems}
               onChange={(bottomBarItems) => updatePreferences({ bottomBarItems })}
             />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="border-b">
+            <div className="flex items-center gap-3">
+              <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary"><Info aria-hidden="true" className="size-5" /></span>
+              <div>
+                <CardTitle>バージョン情報</CardTitle>
+                <CardDescription>稼働しているfrontendとbackendのバージョンです</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="divide-y pt-5 sm:pt-6">
+            <div className="flex items-center justify-between gap-4 pb-4">
+              <span className="text-sm font-semibold">Frontend</span>
+              <span className="font-mono text-sm text-muted-foreground">{displayVersion(frontendVersion)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 pt-4">
+              <span className="text-sm font-semibold">{backendName}</span>
+              <span className="font-mono text-sm text-muted-foreground">{backendVersionLabel}</span>
+            </div>
           </CardContent>
         </Card>
       </div>

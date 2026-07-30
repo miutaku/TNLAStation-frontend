@@ -256,8 +256,23 @@ export class EpgStationApiClient {
     return this.requestVoid("DELETE", `/rules/${ruleId}`, undefined, signal);
   }
 
-  getVersion(signal?: AbortSignal): Promise<VersionInfo> {
-    return this.get<VersionInfo>("/version", undefined, signal);
+  async getVersion(signal?: AbortSignal): Promise<VersionInfo> {
+    const response = await this.request("GET", "/version", { signal });
+    const compatibility = (await response.json()) as Pick<VersionInfo, "version">;
+    const tnlaStationVersion = response.headers.get("X-TNLAStation-Version")?.trim();
+    if (tnlaStationVersion) {
+      return {
+        ...compatibility,
+        backend: "tnlastation",
+        backendVersion: tnlaStationVersion,
+      };
+    }
+
+    return {
+      ...compatibility,
+      backend: "other",
+      backendVersion: compatibility.version,
+    };
   }
 
   getSchedules(options: ScheduleOptions, signal?: AbortSignal): Promise<Schedule[]> {
