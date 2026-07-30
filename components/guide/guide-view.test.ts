@@ -22,7 +22,9 @@ describe("guide layout", () => {
 
     expect(source).toContain('showChannelLogo={preferences.isShowGuideChannelLogos}');
     expect(source).toContain('className="w-9 min-[600px]:w-12"');
-    expect(source).toContain("flex-col justify-center");
+    expect(source).toContain("h-14 w-full items-center justify-center");
+    expect(source).toContain("flex-col gap-0.5");
+    expect(source).toContain("const HEADER_HEIGHT = 56");
   });
 
   it("wraps long channel names with or without channel logos", () => {

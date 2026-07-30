@@ -25,7 +25,7 @@ type BroadcastFilter = "ALL" | ChannelType;
 const BROADCAST_TYPE_LABELS: Record<ChannelType, string> = { GR: "地デジ", BS: "BS", CS: "CS", SKY: "SKY" };
 const BROADCAST_TYPE_ORDER: readonly ChannelType[] = ["GR", "BS", "CS", "SKY"];
 
-const HEADER_HEIGHT = 64;
+const HEADER_HEIGHT = 56;
 
 /**
  * 今日を見るときは、現在時刻の 1 時間前から始める。0 時から始めると赤線が画面外に出るか、
@@ -79,17 +79,24 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
         <button
           type="button"
           className={cn(
-            "flex h-16 w-full items-center text-left transition-colors hover:bg-muted/60",
+            "flex h-14 w-full items-center justify-center text-left transition-colors hover:bg-muted/60",
             showChannelLogo
-              ? "flex-col justify-center gap-0.5 px-1.5 min-[600px]:flex-row min-[600px]:justify-start min-[600px]:gap-2.5 min-[600px]:px-3"
-              : "gap-2.5 px-3",
+              ? "flex-col gap-0.5 px-1 min-[600px]:flex-row min-[600px]:gap-2 min-[600px]:px-2"
+              : "px-2",
           )}
           onClick={() => onSelectChannel(schedule.channel)}
         >
           {showChannelLogo ? (
             <ChannelLogo channel={schedule.channel} className="w-9 min-[600px]:w-12" />
           ) : null}
-          <div className={cn("min-w-0 flex-1", showChannelLogo && "w-full text-center min-[600px]:w-auto min-[600px]:text-left")}>
+          <div
+            className={cn(
+              "min-w-0",
+              showChannelLogo
+                ? "w-full text-center min-[600px]:w-auto min-[600px]:text-left"
+                : "w-full text-center",
+            )}
+          >
             <h2
               id={`channel-${schedule.channel.id}`}
               className={cn(
@@ -171,7 +178,7 @@ function HourLines({ windowMinutes, pixelsPerMinute }: { windowMinutes: number; 
 function TimeAxis({ windowStart, windowMinutes, pixelsPerMinute }: { windowStart: number; windowMinutes: number; pixelsPerMinute: number }) {
   return (
     <div className="sticky left-0 z-30 w-14 shrink-0 border-r bg-background/95 backdrop-blur">
-      <div className="glass-header sticky top-0 z-10 h-16 rounded-none border-x-0 border-t-0" />
+      <div className="glass-header sticky top-0 z-10 h-14 rounded-none border-x-0 border-t-0" />
       <div className="relative" style={{ height: `${windowMinutes * pixelsPerMinute}px` }}>
         {Array.from({ length: Math.ceil(windowMinutes / 60) }, (_, hour) => (
           <div
