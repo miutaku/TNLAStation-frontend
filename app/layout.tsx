@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { DEFAULT_ACCENT_HUE, PREFERENCES_STORAGE_KEY } from "@/lib/preferences";
 
 import "./globals.css";
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <script dangerouslySetInnerHTML={{ __html: noFlashAccentHueScript }} />
       </head>
       <body>
+        <ServiceWorkerRegistration />
         <AppShell>{children}</AppShell>
       </body>
     </html>
