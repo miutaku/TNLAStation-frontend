@@ -34,6 +34,7 @@ import {
 import { apiClient } from "@/lib/api/client";
 import type { ChannelItem, ChannelType, Config, LiveStreamInfoItem, Schedule, ScheduleProgramItem, StreamInfo } from "@/lib/api/types";
 import { calculateElapsedPercentage, formatDuration, formatTime } from "@/lib/format";
+import { describeMissingProgram, findCurrentProgram, nextScheduleRefreshAt } from "@/lib/onair-schedule";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { useRevalidateOnFocus } from "@/lib/hooks/use-revalidate-on-focus";
 import { usePreferences } from "@/lib/hooks/use-preferences";
@@ -134,6 +135,7 @@ function channelOptionLabel(channel: ChannelItem, channels: readonly ChannelItem
 export function OnAirChannelGroupCard({
   group,
   programsByChannel,
+  schedulesByChannel,
   streamsByChannel,
   currentTime,
   halfWidth,
@@ -143,6 +145,7 @@ export function OnAirChannelGroupCard({
 }: {
   group: OnAirChannelGroup;
   programsByChannel: ReadonlyMap<number, ScheduleProgramItem>;
+  schedulesByChannel: ReadonlyMap<number, Schedule>;
   streamsByChannel: ReadonlyMap<number, LiveStreamInfoItem>;
   currentTime: number;
   halfWidth: boolean;
@@ -228,8 +231,12 @@ export function OnAirChannelGroupCard({
               </div>
             </button>
           ) : (
-            // 番組表に無いだけで放送はしている。視聴の導線は残す。
-            <p className="mt-5 rounded-lg border border-dashed px-3 py-5 text-center text-xs text-muted-foreground">この放送局の番組情報はまだ届いていません</p>
+            // どちらの理由でも放送自体はしている。視聴の導線は残す。
+            <p className="mt-5 rounded-lg border border-dashed px-3 py-5 text-center text-xs text-muted-foreground">
+              {describeMissingProgram(schedulesByChannel.get(channel.id)) === "off-air"
+                ? "現在放送中の番組はありません"
+                : "番組情報を取得できませんでした"}
+            </p>
           )}
           <div className="mt-4 flex justify-end border-t pt-4"><Button type="button" size="sm" onClick={() => onWatch(channel)}><Play aria-hidden="true" />今すぐ再生</Button></div>
         </article>
@@ -241,6 +248,7 @@ export function OnAirChannelGroupCard({
 export function OnAirChannelGroupRow({
   group,
   programsByChannel,
+  schedulesByChannel,
   streamsByChannel,
   currentTime,
   halfWidth,
@@ -250,6 +258,7 @@ export function OnAirChannelGroupRow({
 }: {
   group: OnAirChannelGroup;
   programsByChannel: ReadonlyMap<number, ScheduleProgramItem>;
+  schedulesByChannel: ReadonlyMap<number, Schedule>;
   streamsByChannel: ReadonlyMap<number, LiveStreamInfoItem>;
   currentTime: number;
   halfWidth: boolean;
@@ -313,7 +322,11 @@ export function OnAirChannelGroupRow({
           <button type="button" className="text-left font-semibold leading-6 hover:text-primary hover:underline" onClick={() => onReserve(program, channelName)}>
             {program.name}
           </button>
-        ) : <span className="text-muted-foreground">番組情報なし</span>;
+        ) : (
+          <span className="text-muted-foreground">
+            {describeMissingProgram(schedulesByChannel.get(channel.id)) === "off-air" ? "放送中の番組なし" : "番組情報を取得できませんでした"}
+          </span>
+        );
       case "airtime":
         return program ? (
           <>
@@ -386,17 +399,29 @@ export function OnAirView() {
   }, []);
   useRevalidateOnFocus(resource);
 
+  // 番組が終わると手元の一式が古くなる。放送しているのに「番組情報が無い」に見えるので取り直す。
+  const revalidate = resource.revalidate;
+  const refreshAt = useMemo(
+    () => nextScheduleRefreshAt(resource.data?.schedules ?? [], resource.loadedAt || currentTime),
+    [currentTime, resource.data?.schedules, resource.loadedAt],
+  );
+  useEffect(() => {
+    if (refreshAt === null || currentTime < refreshAt) return;
+    revalidate();
+  }, [currentTime, refreshAt, revalidate]);
+
   const liveStreams = useMemo(
     () => resource.data?.streams.items.filter(isLiveStream) ?? [],
     [resource.data?.streams.items],
   );
   const streamsByChannel = useMemo(() => new Map(liveStreams.map((stream) => [stream.channelId, stream])), [liveStreams]);
+  const schedulesByChannel = useMemo(
+    () => new Map((resource.data?.schedules ?? []).map((schedule) => [schedule.channel.id, schedule])),
+    [resource.data?.schedules],
+  );
   const programsByChannel = useMemo(
     () => new Map((resource.data?.schedules ?? [])
-      .map((schedule) => [
-        schedule.channel.id,
-        schedule.programs.find((program) => program.startAt <= currentTime && currentTime < program.endAt),
-      ] as const)
+      .map((schedule) => [schedule.channel.id, findCurrentProgram(schedule, currentTime)] as const)
       .filter((entry): entry is readonly [number, ScheduleProgramItem] => entry[1] !== undefined)),
     [currentTime, resource.data?.schedules],
   );
@@ -480,6 +505,7 @@ export function OnAirView() {
                     key={group.key}
                     group={group}
                     programsByChannel={programsByChannel}
+                    schedulesByChannel={schedulesByChannel}
                     streamsByChannel={streamsByChannel}
                     currentTime={currentTime}
                     halfWidth={preferences.isHalfWidthDisplayed}
@@ -497,6 +523,7 @@ export function OnAirView() {
                   key={group.key}
                   group={group}
                   programsByChannel={programsByChannel}
+                  schedulesByChannel={schedulesByChannel}
                   streamsByChannel={streamsByChannel}
                   currentTime={currentTime}
                   halfWidth={preferences.isHalfWidthDisplayed}

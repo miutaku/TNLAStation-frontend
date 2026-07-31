@@ -116,6 +116,7 @@ describe("on-air channel groups", () => {
     const markup = renderToStaticMarkup(
       createElement(OnAirChannelGroupCard, {
         group,
+        schedulesByChannel: new Map(),
         programsByChannel: new Map([
           [main.id, program(main.id, "メイン番組")],
           [sub.id, program(sub.id, "サブ番組")],
@@ -144,6 +145,7 @@ describe("on-air channel groups", () => {
     const markup = renderToStaticMarkup(
       createElement(OnAirChannelGroupCard, {
         group,
+        schedulesByChannel: new Map(),
         programsByChannel: new Map([[main.id, program(main.id, "メイン番組")]]),
         streamsByChannel: new Map(),
         currentTime: 31_000,
@@ -172,6 +174,7 @@ describe("on-air channel groups", () => {
         createElement("tbody", null,
           createElement(OnAirChannelGroupRow, {
             group,
+            schedulesByChannel: new Map(),
             programsByChannel: new Map([[station.id, program(station.id, "サンプル番組")]]),
             streamsByChannel: new Map(),
             currentTime: 31_000,
@@ -223,6 +226,7 @@ describe("on-air channel groups", () => {
         createElement("tbody", null,
           createElement(OnAirChannelGroupRow, {
             group,
+            schedulesByChannel: new Map(),
             programsByChannel: new Map([[station.id, program(station.id, "サンプル番組")]]),
             streamsByChannel: new Map(),
             currentTime: 31_000,
