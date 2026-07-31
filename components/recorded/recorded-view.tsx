@@ -40,6 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { RecordedPlayButton } from "@/components/recorded/recorded-play-button";
 import { RecordedThumbnail } from "@/components/recorded/recorded-thumbnail";
 import { useToast } from "@/components/ui/toast";
 import { apiClient } from "@/lib/api/client";
@@ -146,7 +147,10 @@ function RecordedCard({ item, showDropInfo, selectable, selected, onToggleSelect
               <dd>Drop {item.dropLogFile?.dropCnt ?? 0}</dd>
             </div> : <div />}
           </dl>
-          <div className="mt-4 flex justify-end"><Button asChild size="sm"><Link href={`/recorded/detail/${item.id}`}>詳細を見る</Link></Button></div>
+          <div className="mt-4 flex justify-end gap-2">
+            <RecordedPlayButton item={item} />
+            <Button asChild size="sm"><Link href={`/recorded/detail/${item.id}`}>詳細を見る</Link></Button>
+          </div>
         </CardContent>
       </article>
     </Card>
@@ -213,9 +217,12 @@ function RecordedTable({
         );
       case "actions":
         return (
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/recorded/detail/${item.id}`} aria-label={`${item.name} の詳細を表示`}>詳細</Link>
-          </Button>
+          <span className="flex items-center justify-end gap-2">
+            <RecordedPlayButton item={item} />
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/recorded/detail/${item.id}`} aria-label={`${item.name} の詳細を表示`}>詳細</Link>
+            </Button>
+          </span>
         );
     }
   };
