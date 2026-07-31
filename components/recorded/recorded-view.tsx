@@ -287,6 +287,7 @@ export function RecordedView() {
   const [bulkCandidateIds, setBulkCandidateIds] = useState<number[]>([]);
   const [bulkTargetIds, setBulkTargetIds] = useState<Set<number>>(new Set());
   const [bulkDeleteOption, setBulkDeleteOption] = useState<BulkDeleteOption>("all");
+  const [thumbnailProgress, setThumbnailProgress] = useState<{ done: number; total: number } | null>(null);
   const [confirmEncode, setConfirmEncode] = useState(false);
   const [encodePlan, setEncodePlan] = useState<RecordedEncodePlan>({ targets: [], skipped: [] });
   const [encodeTargetIds, setEncodeTargetIds] = useState<Set<number>>(new Set());
@@ -542,6 +543,8 @@ export function RecordedView() {
     setBusy(true);
     setActionError(null);
     setActionMessage(null);
+    // 1 件ずつ ffmpeg が走るので、まとめて実行すると数分かかる。どこまで進んだかを出す。
+    setThumbnailProgress({ done: 0, total: plan.targets.length });
     let done = 0;
     const failed: number[] = [];
     for (const target of plan.targets) {
@@ -551,7 +554,9 @@ export function RecordedView() {
       } catch {
         failed.push(target.recordedId);
       }
+      setThumbnailProgress({ done: done + failed.length, total: plan.targets.length });
     }
+    setThumbnailProgress(null);
     setBusy(false);
     exitSelectMode();
     const skipped = plan.skipped.length + failed.length;
@@ -593,6 +598,22 @@ export function RecordedView() {
         }
       />
 
+      {thumbnailProgress ? (
+        <Alert role="status" className="mb-5">
+          <AlertDescription>
+            <span className="flex items-center justify-between gap-3">
+              <span>サムネイルを作り直しています…</span>
+              <span className="tabular-nums text-muted-foreground">{thumbnailProgress.done} / {thumbnailProgress.total}</span>
+            </span>
+            <progress
+              className="mt-2 h-1.5 w-full overflow-hidden rounded-full accent-primary"
+              max={thumbnailProgress.total}
+              value={thumbnailProgress.done}
+              aria-label="サムネイル再生成の進行状況"
+            />
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {actionMessage ? <Alert role="status" className="mb-5 border-emerald-500/35"><AlertDescription>{actionMessage}</AlertDescription></Alert> : null}
       {actionError ? <Alert role="alert" className="mb-5 border-destructive/40"><AlertDescription>{actionError}</AlertDescription></Alert> : null}
 

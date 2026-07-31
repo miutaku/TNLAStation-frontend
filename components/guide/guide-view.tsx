@@ -284,8 +284,21 @@ function GuideGrid({
   useEffect(() => {
     const element = scrollRef.current;
     if (element === null || schedules.length === 0 || scrolledFor.current === schedules) return;
-    scrolledFor.current = schedules;
-    element.scrollTop = leadMinutes * pixelsPerMinute;
+
+    // 列がまだ描かれていないと中身の高さが足りず、代入した位置は 0 へ丸められる。
+    // 高さが目的の位置に届くまでフレームごとに試す。
+    const target = leadMinutes * pixelsPerMinute;
+    let frame = 0;
+    const settle = () => {
+      element.scrollTop = target;
+      if (Math.abs(element.scrollTop - target) < 1) {
+        scrolledFor.current = schedules;
+        return;
+      }
+      frame = requestAnimationFrame(settle);
+    };
+    frame = requestAnimationFrame(settle);
+    return () => cancelAnimationFrame(frame);
   }, [leadMinutes, pixelsPerMinute, schedules]);
 
   useEffect(() => {
