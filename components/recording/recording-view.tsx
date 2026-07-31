@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleDot, CircleStop, Clock3, HardDrive, Radio, RefreshCw } from "lucide-react";
+import { CircleDot, CircleStop, Clock3, Cpu, HardDrive, Radio, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -33,12 +34,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiClient } from "@/lib/api/client";
-import type { RecordedItem, Records } from "@/lib/api/types";
+import type { Config, RecordedItem, Records, ReserveItem } from "@/lib/api/types";
 import { calculateElapsedPercentage, formatBytes, formatDateTime, formatDuration, formatTime } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { useChannelNames } from "@/lib/hooks/use-channel-names";
 import { useRevalidateOnFocus } from "@/lib/hooks/use-revalidate-on-focus";
 import { usePreferences } from "@/lib/hooks/use-preferences";
+import {
+  buildEncodeOnlyReserveUpdate,
+  findReserveForRecording,
+  reserveEncodeModes,
+} from "@/lib/recording-encode";
 
 const recordingTableColumns = [
   { key: "status", label: "状態" },
@@ -48,11 +54,29 @@ const recordingTableColumns = [
   { key: "end", label: "終了予定" },
   { key: "progress", label: "進捗" },
   { key: "size", label: "現在サイズ" },
+  { key: "encode", label: "エンコード設定" },
   { key: "actions", label: "操作" },
 ] as const;
 type RecordingTableColumn = (typeof recordingTableColumns)[number]["key"];
 
-function RecordingCard({ item, currentTime, viewMode, busy, onStop }: { item: RecordedItem; currentTime: number; viewMode: CollectionViewMode; busy: boolean; onStop: (item: RecordedItem) => void }) {
+/** 録画中の番組に紐づく予約。予約が引けないと設定は出せないので undefined を許す。 */
+type EncodeSetting = { reserve: ReserveItem | undefined };
+
+function EncodeSummary({ reserve }: EncodeSetting) {
+  if (!reserve) return <span className="text-muted-foreground">予約を特定できません</span>;
+
+  const modes = reserveEncodeModes(reserve);
+  if (modes.length === 0) return <span className="text-muted-foreground">エンコードしない</span>;
+
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {modes.map((mode) => <Badge key={mode} variant="outline">{mode}</Badge>)}
+      {reserve.isDeleteOriginalAfterEncode ? <Badge variant="warning">元ファイル削除</Badge> : null}
+    </span>
+  );
+}
+
+function RecordingCard({ item, reserve, currentTime, viewMode, busy, onStop, onEditEncode }: { item: RecordedItem; reserve: ReserveItem | undefined; currentTime: number; viewMode: CollectionViewMode; busy: boolean; onStop: (item: RecordedItem) => void; onEditEncode: (item: RecordedItem) => void }) {
   const channelName = useChannelNames();
   const progress = calculateElapsedPercentage(item.startAt, item.endAt, currentTime);
   const fileSize = item.videoFiles?.reduce((total, file) => total + file.size, 0) ?? 0;
@@ -101,6 +125,16 @@ function RecordingCard({ item, currentTime, viewMode, busy, onStop }: { item: Re
               <dd>{fileSize > 0 ? formatBytes(fileSize) : "計測中"}</dd>
             </div>
           </dl>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4 text-xs">
+            <div className="flex min-w-0 items-center gap-2">
+              <Cpu aria-hidden="true" className="size-4 shrink-0 text-primary" />
+              <span className="sr-only">エンコード設定</span>
+              <EncodeSummary reserve={reserve} />
+            </div>
+            <Button type="button" size="sm" variant="ghost" disabled={busy || !reserve} onClick={() => onEditEncode(item)}>
+              設定を変更
+            </Button>
+          </div>
           <div className="mt-4 flex justify-end border-t pt-4">
             <Button type="button" size="sm" variant="destructive" disabled={busy} onClick={() => onStop(item)}>
               <CircleStop aria-hidden="true" />
@@ -119,15 +153,19 @@ const recordingHeaderClassName: Partial<Record<RecordingTableColumn, string>> = 
 
 function RecordingTable({
   records,
+  reserveFor,
   currentTime,
   busyId,
   onStop,
+  onEditEncode,
   columns,
 }: {
   records: RecordedItem[];
+  reserveFor: (item: RecordedItem) => ReserveItem | undefined;
   currentTime: number;
   busyId: number | null;
   onStop: (item: RecordedItem) => void;
+  onEditEncode: (item: RecordedItem) => void;
   columns: TableColumnVisibilityState<RecordingTableColumn>;
 }) {
   const channelName = useChannelNames();
@@ -156,18 +194,32 @@ function RecordingTable({
         );
       case "size":
         return fileSize > 0 ? formatBytes(fileSize) : "計測中";
+      case "encode":
+        return <EncodeSummary reserve={reserveFor(item)} />;
       case "actions":
         return (
-          <Button
-            type="button"
-            size="sm"
-            variant="destructive"
-            aria-label={`${item.name} の録画を停止`}
-            disabled={busyId === item.id}
-            onClick={() => onStop(item)}
-          >
-            <CircleStop aria-hidden="true" />{busyId === item.id ? "停止中…" : "停止"}
-          </Button>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              aria-label={`${item.name} のエンコード設定を変更`}
+              disabled={busyId === item.id || !reserveFor(item)}
+              onClick={() => onEditEncode(item)}
+            >
+              <Cpu aria-hidden="true" />設定
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              aria-label={`${item.name} の録画を停止`}
+              disabled={busyId === item.id}
+              onClick={() => onStop(item)}
+            >
+              <CircleStop aria-hidden="true" />{busyId === item.id ? "停止中…" : "停止"}
+            </Button>
+          </div>
         );
     }
   };
@@ -175,6 +227,7 @@ function RecordingTable({
   const cellClassName: Partial<Record<RecordingTableColumn, string>> = {
     program: "max-w-[30rem] whitespace-normal",
     progress: "min-w-36",
+    encode: "min-w-44 whitespace-normal",
     actions: "text-right",
   };
 
@@ -213,6 +266,10 @@ export function RecordingView() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [encodeTarget, setEncodeTarget] = useState<RecordedItem | null>(null);
+  const [encodeMode, setEncodeMode] = useState("");
+  const [encodeRemoveOriginal, setEncodeRemoveOriginal] = useState(false);
+  const [savingEncode, setSavingEncode] = useState(false);
   const loadRecording = useCallback(
     (signal: AbortSignal): Promise<Records> =>
       apiClient.getRecording(
@@ -227,6 +284,28 @@ export function RecordingView() {
   );
   const resource = useApiResource(loadRecording);
 
+  // エンコード設定は予約が持つ。録画一覧は予約 id を返さないので、予約表を別に読んで結び付ける。
+  const loadEncodeSettings = useCallback(
+    async (signal: AbortSignal): Promise<{ reserves: ReserveItem[]; config: Config }> => {
+      const [reserves, config] = await Promise.all([
+        apiClient.getReserves(
+          { isHalfWidth: preferences.isHalfWidthDisplayed, type: "normal", offset: 0, limit: 1_000 },
+          signal,
+        ),
+        apiClient.getConfig(signal),
+      ]);
+      return { reserves: reserves.reserves, config };
+    },
+    [preferences.isHalfWidthDisplayed],
+  );
+  const encodeSettings = useApiResource(loadEncodeSettings);
+  const encodeModes = encodeSettings.data?.config.encode ?? [];
+  const reserveFor = useCallback(
+    (item: RecordedItem) => findReserveForRecording(item, encodeSettings.data?.reserves ?? []),
+    [encodeSettings.data],
+  );
+  const encodeTargetReserve = encodeTarget ? reserveFor(encodeTarget) : undefined;
+
   useEffect(() => {
     const updateTime = () => setCurrentTime(Date.now());
     const initialFrame = window.requestAnimationFrame(updateTime);
@@ -237,6 +316,47 @@ export function RecordingView() {
     };
   }, []);
   useRevalidateOnFocus(resource);
+
+  const openEncodeDialog = (item: RecordedItem) => {
+    const reserve = reserveFor(item);
+    if (!reserve) return;
+
+    setEncodeTarget(item);
+    setEncodeMode(reserve.encodeMode1 ?? "");
+    setEncodeRemoveOriginal(reserve.isDeleteOriginalAfterEncode);
+  };
+
+  /**
+   * 予約を書き換えるだけなので受信は続く。積むのは録画が終わってからで、そのときに
+   * 最新の予約を見るため、この変更が実際に走るエンコードへ効く。
+   */
+  const saveEncodeSetting = async () => {
+    if (!encodeTarget || !encodeTargetReserve) return;
+
+    setSavingEncode(true);
+    setActionMessage(null);
+    setActionError(null);
+    try {
+      await apiClient.updateReserve(
+        encodeTargetReserve.id,
+        buildEncodeOnlyReserveUpdate(
+          encodeTargetReserve,
+          { mode: encodeMode, removeOriginal: encodeRemoveOriginal },
+        ),
+      );
+      setEncodeTarget(null);
+      setActionMessage(
+        encodeMode
+          ? `「${encodeTarget.name}」の録画後のエンコードを ${encodeMode} にしました。録画は続いています。`
+          : `「${encodeTarget.name}」の録画後のエンコードを取り消しました。録画は続いています。`,
+      );
+      encodeSettings.reload();
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "エンコード設定を変更できませんでした。");
+    } finally {
+      setSavingEncode(false);
+    }
+  };
 
   const stopRecording = async () => {
     if (!stopTarget) return;
@@ -291,17 +411,27 @@ export function RecordingView() {
             ) : null}
           </div>
           {viewMode === "list" ? (
-            <RecordingTable records={resource.data.records} currentTime={currentTime} busyId={busyId} onStop={setStopTarget} columns={tableColumns} />
+            <RecordingTable
+              records={resource.data.records}
+              reserveFor={reserveFor}
+              currentTime={currentTime}
+              busyId={busyId}
+              onStop={setStopTarget}
+              onEditEncode={openEncodeDialog}
+              columns={tableColumns}
+            />
           ) : (
             <div className={collectionLayoutClass(viewMode, "xl:grid-cols-2")} aria-label="録画中の番組">
               {resource.data.records.map((item) => (
                 <RecordingCard
                   key={item.id}
                   item={item}
+                  reserve={reserveFor(item)}
                   currentTime={currentTime}
                   viewMode={viewMode}
                   busy={busyId === item.id}
                   onStop={setStopTarget}
+                  onEditEncode={openEncodeDialog}
                 />
               ))}
             </div>
@@ -310,6 +440,43 @@ export function RecordingView() {
         </>
       ) : null}
 
+      <ConfirmDialog
+        open={encodeTarget !== null}
+        title="録画後のエンコード設定"
+        description={`「${encodeTarget?.name ?? ""}」の予約を書き換えます。受信は止まらず、録画が終わった時点でこの設定が使われます。`}
+        confirmLabel="設定を保存"
+        busy={savingEncode}
+        onConfirm={() => void saveEncodeSetting()}
+        onCancel={() => setEncodeTarget(null)}
+      >
+        <div className="mt-4">
+          <label htmlFor="recording-encode-mode" className="mb-2 block text-sm font-semibold">エンコード設定</label>
+          <select
+            id="recording-encode-mode"
+            className="h-10 w-full rounded-lg border border-input bg-background/75 px-3 text-sm"
+            value={encodeMode}
+            onChange={(event) => setEncodeMode(event.target.value)}
+            disabled={savingEncode}
+          >
+            <option value="">エンコードしない</option>
+            {encodeModes.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+          </select>
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-4 glass-field rounded-lg border p-3">
+          <span id="recording-encode-remove-label" className="text-sm font-semibold">完了後に元ファイルを削除</span>
+          <Switch
+            checked={encodeRemoveOriginal}
+            disabled={savingEncode || encodeMode === ""}
+            aria-labelledby="recording-encode-remove-label"
+            onClick={() => setEncodeRemoveOriginal((value) => !value)}
+          />
+        </div>
+        {encodeTargetReserve?.encodeMode2 !== undefined ? (
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">
+            2 つめ以降のエンコード設定はそのまま残します。すべて変えるときは予約の編集画面を使ってください。
+          </p>
+        ) : null}
+      </ConfirmDialog>
       <ConfirmDialog
         open={stopTarget !== null}
         title="録画を停止しますか？"

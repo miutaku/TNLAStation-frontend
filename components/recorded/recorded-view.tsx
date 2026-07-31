@@ -41,12 +41,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiClient } from "@/lib/api/client";
-import type { ChannelItem, RecordedItem, Records, Rule } from "@/lib/api/types";
+import type { ChannelItem, Config, RecordedItem, Records, Rule } from "@/lib/api/types";
 import { formatBytes, formatDateTime, formatDuration, genreName } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { useChannelNames } from "@/lib/hooks/use-channel-names";
 import { usePreferences } from "@/lib/hooks/use-preferences";
 import { createRecordedDeletePlan, type FileDeleteOption } from "@/lib/recorded-deletion";
+import {
+  createRecordedEncodePlan,
+  recordedEncodeSkipLabel,
+  type RecordedEncodePlan,
+} from "@/lib/recorded-encode";
 
 const recordedTableColumns = [
   { key: "status", label: "状態" },
@@ -281,6 +286,11 @@ export function RecordedView() {
   const [bulkCandidateIds, setBulkCandidateIds] = useState<number[]>([]);
   const [bulkTargetIds, setBulkTargetIds] = useState<Set<number>>(new Set());
   const [bulkDeleteOption, setBulkDeleteOption] = useState<BulkDeleteOption>("all");
+  const [confirmEncode, setConfirmEncode] = useState(false);
+  const [encodePlan, setEncodePlan] = useState<RecordedEncodePlan>({ targets: [], skipped: [] });
+  const [encodeTargetIds, setEncodeTargetIds] = useState<Set<number>>(new Set());
+  const [encodeMode, setEncodeMode] = useState("");
+  const [encodeRemoveOriginal, setEncodeRemoveOriginal] = useState(false);
   const [confirmCleanup, setConfirmCleanup] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -294,17 +304,19 @@ export function RecordedView() {
   );
   const tableColumns = useTableColumnVisibility("recorded", availableTableColumns);
   const searchQuery = useMemo(() => toProgramCollectionQuery(search), [search]);
-  const loadSearchOptions = useCallback(
-    async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; rules: Rule[] }> => {
-      const [channels, rules] = await Promise.all([
+  const loadPageOptions = useCallback(
+    async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; rules: Rule[]; config: Config }> => {
+      const [channels, rules, config] = await Promise.all([
         apiClient.getChannels(signal),
         apiClient.getRules({ offset: 0, limit: 1_000 }, signal),
+        apiClient.getConfig(signal),
       ]);
-      return { channels, rules: rules.rules };
+      return { channels, rules: rules.rules, config };
     },
     [],
   );
-  const searchOptions = useApiResource(loadSearchOptions);
+  const pageOptions = useApiResource(loadPageOptions);
+  const encodeModes = pageOptions.data?.config.encode ?? [];
 
   const loadRecorded = useCallback(
     (signal: AbortSignal): Promise<Records> =>
@@ -475,6 +487,55 @@ export function RecordedView() {
     });
   };
 
+  const openBulkEncodeDialog = () => {
+    const plan = createRecordedEncodePlan([...selectedIds], knownItems);
+    setEncodePlan(plan);
+    setEncodeTargetIds(new Set(plan.targets.map((target) => target.recordedId)));
+    setEncodeMode((current) => (encodeModes.includes(current) ? current : encodeModes[0] ?? ""));
+    setConfirmEncode(true);
+  };
+
+  const toggleEncodeTarget = (id: number) => {
+    setEncodeTargetIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const encodeSelected = async () => {
+    const targets = encodePlan.targets.filter((target) => encodeTargetIds.has(target.recordedId));
+    setBusy(true);
+    setActionError(null);
+    setActionMessage(null);
+    let queued = 0;
+    const failed: string[] = [];
+    for (const target of targets) {
+      try {
+        await apiClient.addEncode({
+          recordedId: target.recordedId,
+          sourceVideoFileId: target.sourceVideoFileId,
+          isSaveSameDirectory: true,
+          mode: encodeMode,
+          removeOriginal: encodeRemoveOriginal,
+        });
+        queued += 1;
+      } catch {
+        failed.push(target.name);
+      }
+    }
+    setBusy(false);
+    setConfirmEncode(false);
+    exitSelectMode();
+    if (failed.length > 0) {
+      setActionError(`${queued} 件のエンコードを追加しました。${failed.length} 件は追加できませんでした。`);
+    } else {
+      setActionMessage(`${queued} 件のエンコードを追加しました。`);
+    }
+    resource.reload();
+  };
+
   const cleanup = async () => {
     setBusy(true);
     setActionError(null);
@@ -538,6 +599,7 @@ export function RecordedView() {
               </label>
             </fieldset>
             <Button type="button" variant="ghost" onClick={exitSelectMode} disabled={busy}>選択解除</Button>
+            <Button type="button" variant="outline" disabled={busy || selectedIds.size === 0 || encodeModes.length === 0} onClick={openBulkEncodeDialog}><Cpu aria-hidden="true" />まとめてエンコード</Button>
             <Button type="button" variant="destructive" disabled={busy || selectedIds.size === 0} onClick={openBulkDeleteDialog}><Trash2 aria-hidden="true" />まとめて削除</Button>
           </div>
         </div>
@@ -546,8 +608,8 @@ export function RecordedView() {
       <ProgramCollectionSearch
         idPrefix="recorded-search"
         value={draftSearch}
-        channels={searchOptions.data?.channels ?? []}
-        rules={searchOptions.data?.rules ?? []}
+        channels={pageOptions.data?.channels ?? []}
+        rules={pageOptions.data?.rules ?? []}
         methodLabel="録画方法"
         manualLabel="手動録画"
         onChange={setDraftSearch}
@@ -667,6 +729,95 @@ export function RecordedView() {
             </li>
           ))}
         </ul>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={confirmEncode}
+        title={`${encodeTargetIds.size} 件のエンコードを追加しますか？`}
+        description="選択した番組の元 TS を変換元にして、待ち行列へ追加します。進み具合はエンコード画面で確認できます。"
+        confirmLabel="まとめてエンコード"
+        busy={busy}
+        confirmDisabled={encodeTargetIds.size === 0 || encodeMode === ""}
+        onConfirm={() => void encodeSelected()}
+        onCancel={() => setConfirmEncode(false)}
+      >
+        <div className="mt-4">
+          <label htmlFor="bulk-encode-mode" className="mb-2 block text-sm font-semibold">エンコード設定</label>
+          <select
+            id="bulk-encode-mode"
+            className="h-10 w-full rounded-lg border border-input bg-background/75 px-3 text-sm"
+            value={encodeMode}
+            onChange={(event) => setEncodeMode(event.target.value)}
+            disabled={busy}
+          >
+            {encodeModes.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
+          </select>
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-4 glass-field rounded-lg border p-3">
+          <span id="bulk-encode-remove-label" className="text-sm font-semibold">完了後に元ファイルを削除</span>
+          <Switch
+            checked={encodeRemoveOriginal}
+            disabled={busy}
+            aria-labelledby="bulk-encode-remove-label"
+            onClick={() => setEncodeRemoveOriginal((value) => !value)}
+          />
+        </div>
+        {encodeRemoveOriginal ? (
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            エンコード成功後に元 TS を削除します。出力を確認するまで残す場合は切ってください。
+          </p>
+        ) : null}
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <p id="bulk-encode-programs-label" className="text-sm font-semibold">対象番組</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={busy || encodePlan.targets.length === 0}
+            onClick={() => setEncodeTargetIds(
+              encodeTargetIds.size === encodePlan.targets.length
+                ? new Set()
+                : new Set(encodePlan.targets.map((target) => target.recordedId)),
+            )}
+          >
+            {encodeTargetIds.size === encodePlan.targets.length ? "すべて外す" : "すべて選ぶ"}
+          </Button>
+        </div>
+        {encodePlan.targets.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">エンコードできる番組がありません。</p>
+        ) : (
+          <ul aria-labelledby="bulk-encode-programs-label" className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded-lg border bg-muted/40 p-2 text-xs">
+            {encodePlan.targets.map((target) => (
+              <li key={target.recordedId}>
+                <label className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-muted">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
+                    checked={encodeTargetIds.has(target.recordedId)}
+                    disabled={busy}
+                    onChange={() => toggleEncodeTarget(target.recordedId)}
+                    aria-label={`${target.name} をエンコード対象にする`}
+                  />
+                  <span className="min-w-0 truncate" title={target.name}>{target.name}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+        {encodePlan.skipped.length > 0 ? (
+          <>
+            <p id="bulk-encode-skipped-label" className="mt-4 text-sm font-semibold">
+              エンコードできない番組 ({encodePlan.skipped.length} 件)
+            </p>
+            <ul aria-labelledby="bulk-encode-skipped-label" className="mt-2 max-h-32 space-y-1 overflow-y-auto rounded-lg border bg-muted/40 p-2 text-xs text-muted-foreground">
+              {encodePlan.skipped.map((skip) => (
+                <li key={skip.recordedId} className="flex min-w-0 items-baseline gap-2 p-2">
+                  <span className="min-w-0 truncate" title={skip.name}>{skip.name}</span>
+                  <span className="shrink-0">— {recordedEncodeSkipLabel[skip.reason]}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
       </ConfirmDialog>
       <ConfirmDialog
         open={confirmCleanup}
