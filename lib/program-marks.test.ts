@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { RecordedItem, ReserveItem } from "@/lib/api/types";
-import { hasFinished, recordingProgramIds, reservedProgramIds } from "./program-marks";
+import { hasFinished, recordingProgramIds, reservedProgramIds, reserveIdByProgram } from "./program-marks";
 
 function reserve(overrides: Partial<ReserveItem> & { id: number }): ReserveItem {
   return { isSkip: false, isConflict: false, isOverlap: false, ...overrides } as ReserveItem;
@@ -18,6 +18,23 @@ describe("reservedProgramIds", () => {
     ];
 
     expect([...reservedProgramIds(reserves)]).toEqual([100]);
+  });
+});
+
+describe("reserveIdByProgram", () => {
+  /** 予約済みの番組では、追加ではなく解除を出す。そのために予約 id が要る。 */
+  it("maps a program to the reserve that would record it", () => {
+    const reserves = [
+      reserve({ id: 7, programId: 100 }),
+      reserve({ id: 8, programId: 200, isSkip: true }),
+      reserve({ id: 9 }),
+    ];
+
+    const map = reserveIdByProgram(reserves);
+
+    expect(map.get(100)).toBe(7);
+    expect(map.has(200)).toBe(false);
+    expect(map.size).toBe(1);
   });
 });
 

@@ -32,10 +32,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiClient } from "@/lib/api/client";
-import type { ChannelItem, ChannelType, Config, LiveStreamInfoItem, Records, Schedule, ScheduleProgramItem, StreamInfo } from "@/lib/api/types";
+import type { ChannelItem, ChannelType, Config, LiveStreamInfoItem, Records, Reserves, Schedule, ScheduleProgramItem, StreamInfo } from "@/lib/api/types";
 import { calculateElapsedPercentage, formatDuration, formatTime } from "@/lib/format";
 import { describeMissingProgram, findCurrentProgram, nextScheduleRefreshAt } from "@/lib/onair-schedule";
-import { recordingProgramIds } from "@/lib/program-marks";
+import { recordingProgramIds, reserveIdByProgram } from "@/lib/program-marks";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { useRevalidateOnFocus } from "@/lib/hooks/use-revalidate-on-focus";
 import { usePreferences } from "@/lib/hooks/use-preferences";
@@ -383,15 +383,16 @@ export function OnAirView() {
   const { preferences } = usePreferences();
   const [viewMode, setViewMode] = useCollectionViewMode("onair");
   const tableColumns = useTableColumnVisibility("onair", onAirTableColumns);
-  const loadOnAir = useCallback(async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; schedules: Schedule[]; streams: StreamInfo; config: Config; recording: Records }> => {
-    const [channels, schedules, streams, config, recording] = await Promise.all([
+  const loadOnAir = useCallback(async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; schedules: Schedule[]; streams: StreamInfo; config: Config; recording: Records; reserves: Reserves }> => {
+    const [channels, schedules, streams, config, recording, reserves] = await Promise.all([
       apiClient.getChannels(signal),
       apiClient.getBroadcastingSchedules(preferences.isHalfWidthDisplayed, signal),
       apiClient.getStreams(preferences.isHalfWidthDisplayed, signal),
       apiClient.getConfig(signal),
       apiClient.getRecording({ isHalfWidth: preferences.isHalfWidthDisplayed, limit: 100 }, signal),
+      apiClient.getReserves({ type: "normal", isHalfWidth: preferences.isHalfWidthDisplayed, limit: 2000 }, signal),
     ]);
-    return { channels: channels.filter((channel) => isAudioVideoService(channel.type)), schedules, streams, config, recording };
+    return { channels: channels.filter((channel) => isAudioVideoService(channel.type)), schedules, streams, config, recording, reserves };
   }, [preferences.isHalfWidthDisplayed]);
   const resource = useApiResource(loadOnAir);
 
@@ -428,6 +429,10 @@ export function OnAirView() {
   const recordingIds = useMemo(
     () => recordingProgramIds(resource.data?.recording.records ?? []),
     [resource.data?.recording.records],
+  );
+  const reserveIds = useMemo(
+    () => reserveIdByProgram(resource.data?.reserves.reserves ?? []),
+    [resource.data?.reserves.reserves],
   );
   const schedulesByChannel = useMemo(
     () => new Map((resource.data?.schedules ?? []).map((schedule) => [schedule.channel.id, schedule])),
@@ -558,7 +563,9 @@ export function OnAirView() {
           program={reserveTarget?.program ?? null}
           channelName={reserveTarget?.channelName ?? ""}
           config={resource.data.config}
+          reserveId={reserveTarget ? reserveIds.get(reserveTarget.program.id) : undefined}
           onClose={() => setReserveTarget(null)}
+          onReserved={resource.revalidate}
         />
       ) : null}
       {resource.data ? (

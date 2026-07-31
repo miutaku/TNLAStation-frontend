@@ -1,4 +1,4 @@
-import { ApiError } from "@/lib/api/client";
+import { describeApiFailure } from "@/lib/api-errors";
 
 /**
  * 配信を開始できなかった理由。EPGStation は失敗をすべて 500 + errors 文字列で返すので、
@@ -19,12 +19,5 @@ const STREAM_FAILURES: Record<string, string> = {
 };
 
 export function describeStreamFailure(reason: unknown): Error {
-  if (!(reason instanceof ApiError)) {
-    return reason instanceof Error ? reason : new Error("配信を開始できませんでした。");
-  }
-
-  const known = reason.reason === undefined ? undefined : STREAM_FAILURES[reason.reason];
-  if (known !== undefined) return new Error(known);
-  // 知らない理由でも、コードだけは見せる。黙って定型文にすると原因を追えない。
-  return new Error(reason.reason ?? "配信を開始できませんでした。");
+  return describeApiFailure(reason, STREAM_FAILURES, "配信を開始できませんでした。");
 }

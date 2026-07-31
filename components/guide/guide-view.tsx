@@ -16,7 +16,7 @@ import { apiClient } from "@/lib/api/client";
 import type { ChannelType, Config, Reserves, Schedule, ScheduleProgramItem } from "@/lib/api/types";
 import { formatDuration, formatTime, genreName, programTone } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
-import { hasFinished, reservedProgramIds } from "@/lib/program-marks";
+import { hasFinished, reserveIdByProgram } from "@/lib/program-marks";
 import { usePreferences } from "@/lib/hooks/use-preferences";
 import type { GuideDrawMode } from "@/lib/preferences";
 import { cn } from "@/lib/utils";
@@ -448,10 +448,11 @@ export function GuideView() {
   const windowMinutes = leadMinutes + preferences.guideLength * 60;
   const hasPrograms = resource.data?.schedules.some((schedule) => schedule.programs.length > 0) ?? false;
   const schedules = useMemo(() => resource.data?.schedules ?? [], [resource.data?.schedules]);
-  const reservedIds = useMemo(
-    () => reservedProgramIds(resource.data?.reserves.reserves ?? []),
+  const reserveIds = useMemo(
+    () => reserveIdByProgram(resource.data?.reserves.reserves ?? []),
     [resource.data?.reserves.reserves],
   );
+  const reservedIds = useMemo(() => new Set(reserveIds.keys()), [reserveIds]);
 
   // config.broadcast は実際に受信できる放送波。読み込み前は全種別を出し、届き次第絞り込む。
   const availableBroadcastTypes = useMemo(
@@ -609,10 +610,12 @@ export function GuideView() {
 
       {resource.data ? (
         <ProgramReserveDialog
+          reserveId={selectedProgram ? reserveIds.get(selectedProgram.program.id) : undefined}
           program={selectedProgram?.program ?? null}
           channelName={selectedProgram?.channelName ?? ""}
           config={resource.data.config}
           onClose={() => setSelectedProgram(null)}
+          onReserved={resource.revalidate}
         />
       ) : null}
       {resource.data ? (
