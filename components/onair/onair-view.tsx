@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Play, Radio, RefreshCw } from "lucide-react";
+import { Activity, Circle, Play, Radio, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-state";
@@ -32,9 +32,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiClient } from "@/lib/api/client";
-import type { ChannelItem, ChannelType, Config, LiveStreamInfoItem, Schedule, ScheduleProgramItem, StreamInfo } from "@/lib/api/types";
+import type { ChannelItem, ChannelType, Config, LiveStreamInfoItem, Records, Schedule, ScheduleProgramItem, StreamInfo } from "@/lib/api/types";
 import { calculateElapsedPercentage, formatDuration, formatTime } from "@/lib/format";
 import { describeMissingProgram, findCurrentProgram, nextScheduleRefreshAt } from "@/lib/onair-schedule";
+import { recordingProgramIds } from "@/lib/program-marks";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { useRevalidateOnFocus } from "@/lib/hooks/use-revalidate-on-focus";
 import { usePreferences } from "@/lib/hooks/use-preferences";
@@ -136,6 +137,7 @@ export function OnAirChannelGroupCard({
   group,
   programsByChannel,
   schedulesByChannel,
+  recordingIds,
   streamsByChannel,
   currentTime,
   halfWidth,
@@ -146,6 +148,7 @@ export function OnAirChannelGroupCard({
   group: OnAirChannelGroup;
   programsByChannel: ReadonlyMap<number, ScheduleProgramItem>;
   schedulesByChannel: ReadonlyMap<number, Schedule>;
+  recordingIds: ReadonlySet<number>;
   streamsByChannel: ReadonlyMap<number, LiveStreamInfoItem>;
   currentTime: number;
   halfWidth: boolean;
@@ -188,6 +191,7 @@ export function OnAirChannelGroupCard({
             </button>
             <div className="flex flex-wrap justify-end gap-2">
               {selectableChannels.length > 1 ? <Badge variant="outline">{selectableChannels.length} 放送中サービス</Badge> : null}
+              {program && recordingIds.has(program.id) ? <Badge variant="destructive"><Circle aria-hidden="true" className="fill-current" />録画中</Badge> : null}
               {stream ? <Badge variant="success"><Activity aria-hidden="true" />視聴中</Badge> : null}
             </div>
           </div>
@@ -249,6 +253,7 @@ export function OnAirChannelGroupRow({
   group,
   programsByChannel,
   schedulesByChannel,
+  recordingIds,
   streamsByChannel,
   currentTime,
   halfWidth,
@@ -259,6 +264,7 @@ export function OnAirChannelGroupRow({
   group: OnAirChannelGroup;
   programsByChannel: ReadonlyMap<number, ScheduleProgramItem>;
   schedulesByChannel: ReadonlyMap<number, Schedule>;
+  recordingIds: ReadonlySet<number>;
   streamsByChannel: ReadonlyMap<number, LiveStreamInfoItem>;
   currentTime: number;
   halfWidth: boolean;
@@ -319,9 +325,12 @@ export function OnAirChannelGroupRow({
         ) : <span className="text-muted-foreground">メイン</span>;
       case "program":
         return program ? (
-          <button type="button" className="text-left font-semibold leading-6 hover:text-primary hover:underline" onClick={() => onReserve(program, channelName)}>
-            {program.name}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className="text-left font-semibold leading-6 hover:text-primary hover:underline" onClick={() => onReserve(program, channelName)}>
+              {program.name}
+            </button>
+            {recordingIds.has(program.id) ? <Badge variant="destructive"><Circle aria-hidden="true" className="fill-current" />録画中</Badge> : null}
+          </div>
         ) : (
           <span className="text-muted-foreground">
             {describeMissingProgram(schedulesByChannel.get(channel.id)) === "off-air" ? "放送中の番組なし" : "番組情報を取得できませんでした"}
@@ -374,14 +383,15 @@ export function OnAirView() {
   const { preferences } = usePreferences();
   const [viewMode, setViewMode] = useCollectionViewMode("onair");
   const tableColumns = useTableColumnVisibility("onair", onAirTableColumns);
-  const loadOnAir = useCallback(async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; schedules: Schedule[]; streams: StreamInfo; config: Config }> => {
-    const [channels, schedules, streams, config] = await Promise.all([
+  const loadOnAir = useCallback(async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; schedules: Schedule[]; streams: StreamInfo; config: Config; recording: Records }> => {
+    const [channels, schedules, streams, config, recording] = await Promise.all([
       apiClient.getChannels(signal),
       apiClient.getBroadcastingSchedules(preferences.isHalfWidthDisplayed, signal),
       apiClient.getStreams(preferences.isHalfWidthDisplayed, signal),
       apiClient.getConfig(signal),
+      apiClient.getRecording({ isHalfWidth: preferences.isHalfWidthDisplayed, limit: 100 }, signal),
     ]);
-    return { channels: channels.filter((channel) => isAudioVideoService(channel.type)), schedules, streams, config };
+    return { channels: channels.filter((channel) => isAudioVideoService(channel.type)), schedules, streams, config, recording };
   }, [preferences.isHalfWidthDisplayed]);
   const resource = useApiResource(loadOnAir);
 
@@ -415,6 +425,10 @@ export function OnAirView() {
     [resource.data?.streams.items],
   );
   const streamsByChannel = useMemo(() => new Map(liveStreams.map((stream) => [stream.channelId, stream])), [liveStreams]);
+  const recordingIds = useMemo(
+    () => recordingProgramIds(resource.data?.recording.records ?? []),
+    [resource.data?.recording.records],
+  );
   const schedulesByChannel = useMemo(
     () => new Map((resource.data?.schedules ?? []).map((schedule) => [schedule.channel.id, schedule])),
     [resource.data?.schedules],
@@ -506,6 +520,7 @@ export function OnAirView() {
                     group={group}
                     programsByChannel={programsByChannel}
                     schedulesByChannel={schedulesByChannel}
+                    recordingIds={recordingIds}
                     streamsByChannel={streamsByChannel}
                     currentTime={currentTime}
                     halfWidth={preferences.isHalfWidthDisplayed}
@@ -524,6 +539,7 @@ export function OnAirView() {
                   group={group}
                   programsByChannel={programsByChannel}
                   schedulesByChannel={schedulesByChannel}
+                  recordingIds={recordingIds}
                   streamsByChannel={streamsByChannel}
                   currentTime={currentTime}
                   halfWidth={preferences.isHalfWidthDisplayed}

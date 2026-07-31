@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ChevronDown, CircleStop, Cpu, Download, Film, HardDrive, LockKeyhole, Play, RadioTower, ShieldOff, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, CircleStop, Cpu, Download, Film, HardDrive, Image as ImageIcon, LockKeyhole, Play, RadioTower, ShieldOff, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type FormEvent } from "react";
@@ -18,6 +18,7 @@ import { apiClient } from "@/lib/api/client";
 import type { Config, RecordedItem, VideoFile } from "@/lib/api/types";
 import { formatBytes, formatDateTime, formatDuration, genreName } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
+import { thumbnailSkipLabel, toThumbnailTarget } from "@/lib/recorded-thumbnail";
 import { useChannelNames } from "@/lib/hooks/use-channel-names";
 import { usePreferences } from "@/lib/hooks/use-preferences";
 
@@ -101,6 +102,7 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
   const resource = useApiResource(loadDetail);
   const recorded = resource.data?.recorded ?? null;
   const files = useMemo(() => recorded?.videoFiles ?? [], [recorded?.videoFiles]);
+  const thumbnailTarget = useMemo(() => (recorded ? toThumbnailTarget(recorded) : "unknown" as const), [recorded]);
 
   const openDeleteDialog = () => {
     setDeleteVideoFileIds(new Set(files.map((file) => file.id)));
@@ -201,6 +203,18 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
                 <LockKeyhole aria-hidden="true" />保護
               </Button>
             )}
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy || typeof thumbnailTarget === "string"}
+              title={typeof thumbnailTarget === "string" ? thumbnailSkipLabel(thumbnailTarget) : undefined}
+              onClick={() => {
+                if (typeof thumbnailTarget === "string") return;
+                void runAction(() => apiClient.regenerateThumbnail(thumbnailTarget), "サムネイルを作り直しました。");
+              }}
+            >
+              <ImageIcon aria-hidden="true" />サムネイル再生成
+            </Button>
             <Button type="button" variant="destructive" disabled={busy || recorded.isRecording || files.length === 0} onClick={openDeleteDialog}>
               <Trash2 aria-hidden="true" />削除
             </Button>

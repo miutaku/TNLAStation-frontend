@@ -1,3 +1,4 @@
+import type { ThumbnailTarget } from "@/lib/recorded-thumbnail";
 import type {
   AddManualEncodeProgramOptions,
   AddRuleOptions,
@@ -348,6 +349,17 @@ export class EpgStationApiClient {
 
   cancelEncode(encodeId: EncodeId, signal?: AbortSignal): Promise<void> {
     return this.requestVoid("DELETE", `/encode/${encodeId}`, undefined, signal);
+  }
+
+  /**
+   * サムネイルを作り直す。作成側は既にあると何もしないので、先に消す。
+   * 消してから作るので、失敗すると一時的にサムネイルが無い状態になる。
+   */
+  async regenerateThumbnail(target: ThumbnailTarget, signal?: AbortSignal): Promise<void> {
+    for (const thumbnailId of target.staleThumbnailIds) {
+      await this.requestVoid("DELETE", `/thumbnails/${thumbnailId}`, undefined, signal);
+    }
+    await this.requestVoid("POST", `/thumbnails/videos/${target.videoFileId}`, undefined, signal);
   }
 
   thumbnailUrl(thumbnailId: ThumbnailId): string {

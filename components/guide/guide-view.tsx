@@ -13,9 +13,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api/client";
-import type { ChannelType, Config, Schedule, ScheduleProgramItem } from "@/lib/api/types";
+import type { ChannelType, Config, Reserves, Schedule, ScheduleProgramItem } from "@/lib/api/types";
 import { formatDuration, formatTime, genreName, programTone } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
+import { hasFinished, reservedProgramIds } from "@/lib/program-marks";
 import { usePreferences } from "@/lib/hooks/use-preferences";
 import type { GuideDrawMode } from "@/lib/preferences";
 import { cn } from "@/lib/utils";
@@ -27,19 +28,19 @@ const BROADCAST_TYPE_ORDER: readonly ChannelType[] = ["GR", "BS", "CS", "SKY"];
 
 const HEADER_HEIGHT = 56;
 
+/** 窓は常にその日の 0 時から。過ぎた時間帯も上へスクロールすれば見られる。 */
+function windowStartFor(date: string): number {
+  return jstStartOfDate(date);
+}
+
 /**
- * 今日を見るときは、現在時刻の 1 時間前から始める。0 時から始めると赤線が画面外に出るか、
- * 逆に上端へ貼り付いて直前の番組が見えなくなる。
+ * 開いたときに見せたい位置 (窓の先頭からの分)。今日なら現在時刻の 1 時間前。
+ * 時に丸めるので毎分は動かず、番組表を 1 分ごとに取り直さずに済む。
  */
-function windowStartFor(date: string, now: number): number {
-  const midnight = jstStartOfDate(date);
-  if (now <= 0) return midnight;
-
-  const today = todayInJst();
-  if (date !== today) return midnight;
-
-  // 0 時台でも前日の 23 時から始める。当日 0 時で切ると、赤線が上端に貼り付いてしまう。
-  return Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
+function leadMinutesFor(date: string, now: number): number {
+  if (now <= 0 || date !== todayInJst()) return 0;
+  const hourBefore = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
+  return Math.max(0, (hourBefore - jstStartOfDate(date)) / 60_000);
 }
 
 function todayInJst(): string {
@@ -61,7 +62,7 @@ function jstStartOfDate(value: string): number {
  */
 // 列を数フレームに分けて足すとき、既に置いた列まで描き直すと O(n^2) になって重くなる。
 // memo で、番組表 (schedule) と座標系が同じ列は再描画を省く。
-const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windowMinutes, pixelsPerMinute, highlightGenres, showChannelLogo, onSelectProgram, onSelectChannel }: {
+const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windowMinutes, pixelsPerMinute, highlightGenres, showChannelLogo, reservedIds, now, onSelectProgram, onSelectChannel }: {
   schedule: Schedule;
   windowStart: number;
   windowMinutes: number;
@@ -69,6 +70,8 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
   /** 目立たせる大分類ジャンル。空なら全番組を通常表示。 */
   highlightGenres: readonly number[];
   showChannelLogo: boolean;
+  reservedIds: ReadonlySet<number>;
+  now: number;
   onSelectProgram: (program: ScheduleProgramItem, channelName: string) => void;
   onSelectChannel: (channel: Schedule["channel"]) => void;
 }) {
@@ -121,6 +124,8 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
             const offsetMinutes = (program.startAt - windowStart) / 60_000;
             const lengthMinutes = (program.endAt - program.startAt) / 60_000;
             const height = lengthMinutes * pixelsPerMinute;
+            const reserved = reservedIds.has(program.id);
+            const finished = hasFinished(program, now);
             const dimmed =
               highlightGenres.length > 0 &&
               ![program.genre1, program.genre2, program.genre3].some(
@@ -130,19 +135,25 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
               <button
                 type="button"
                 key={program.id}
+                disabled={finished}
                 className={cn(
-                  "absolute inset-x-1 overflow-hidden rounded-lg border px-2 py-1.5 text-left transition-shadow hover:shadow-md hover:brightness-105",
+                  "absolute inset-x-1 overflow-hidden rounded-lg border px-2 py-1.5 text-left transition-shadow",
                   programTone(program.genre1),
                   dimmed && "opacity-35 saturate-50",
+                  reserved && "border-2 border-destructive",
+                  finished
+                    ? "cursor-not-allowed opacity-45 grayscale"
+                    : "hover:shadow-md hover:brightness-105",
                 )}
                 style={{ top: `${offsetMinutes * pixelsPerMinute}px`, height: `${height}px` }}
-                aria-label={`${formatTime(program.startAt)} ${program.name} の録画予約メニュー`}
+                aria-label={`${formatTime(program.startAt)} ${program.name}${finished ? " (放送終了)" : " の録画予約メニュー"}`}
                 onClick={() => onSelectProgram(program, schedule.channel.name)}
               >
                 <div className="flex items-center gap-1.5 text-[0.7rem] leading-4 font-medium text-muted-foreground">
                   <time dateTime={new Date(program.startAt).toISOString()}>{formatTime(program.startAt)}</time>
                   <span>({formatDuration(program.startAt, program.endAt)})</span>
                   {!program.isFree ? <Badge variant="outline">有料</Badge> : null}
+                  {reserved ? <Badge variant="destructive">予約</Badge> : null}
                 </div>
                 <h3 className="mt-0.5 text-sm leading-5 font-semibold">{program.name}</h3>
                 {/* 短い番組に説明を入れると番組名が隠れるため、入る高さのときだけ出す。 */}
@@ -231,6 +242,8 @@ function GuideGrid({
   showChannelLogo,
   columnScale,
   pixelsPerMinute,
+  reservedIds,
+  leadMinutes,
   onSelectProgram,
   onSelectChannel,
 }: {
@@ -243,6 +256,9 @@ function GuideGrid({
   showChannelLogo: boolean;
   columnScale: number;
   pixelsPerMinute: number;
+  reservedIds: ReadonlySet<number>;
+  /** 窓の先頭から現在時刻の 1 時間前まで。開いたときここへ送る。 */
+  leadMinutes: number;
   onSelectProgram: (program: ScheduleProgramItem, channelName: string) => void;
   onSelectChannel: (channel: Schedule["channel"]) => void;
 }) {
@@ -261,6 +277,16 @@ function GuideGrid({
     setSequentialCount(SEQUENTIAL_BATCH);
     setVisibleRange((range) => ({ start: 0, end: schedules.length, columnWidth: range.columnWidth }));
   }
+
+  // 窓は 0 時から始まるので、開いたときは現在時刻の手前へ送る。過ぎた時間帯は上に残す。
+  // 読み込み直後の 1 回だけ。以降に動かすと、見ている位置が勝手に戻る。
+  const scrolledFor = useRef<Schedule[] | null>(null);
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (element === null || schedules.length === 0 || scrolledFor.current === schedules) return;
+    scrolledFor.current = schedules;
+    element.scrollTop = leadMinutes * pixelsPerMinute;
+  }, [leadMinutes, pixelsPerMinute, schedules]);
 
   useEffect(() => {
     if (drawMode !== "sequential" || sequentialCount >= schedules.length) return;
@@ -346,6 +372,8 @@ function GuideGrid({
                 pixelsPerMinute={pixelsPerMinute}
                 highlightGenres={highlightGenres}
                 showChannelLogo={showChannelLogo}
+                reservedIds={reservedIds}
+                now={now}
                 onSelectProgram={onSelectProgram}
                 onSelectChannel={onSelectChannel}
               />
@@ -388,17 +416,19 @@ export function GuideView() {
 
   // 開始位置は時計から導くが、時に丸めてあるので毎分は動かない。時が変わったときだけ
   // 取り直し、番組表が 1 分ごとに再取得されるのを避ける。
-  const windowStart = useMemo(() => windowStartFor(date, now), [date, now]);
+  const windowStart = useMemo(() => windowStartFor(date), [date]);
+  // 前に遡れるぶんだけ窓を広げる。見える先の長さ (guideLength) は変えない。
+  const leadMinutes = useMemo(() => leadMinutesFor(date, now), [date, now]);
 
   const loadGuide = useCallback(
-    async (signal: AbortSignal): Promise<{ config: Config; schedules: Schedule[] }> => {
+    async (signal: AbortSignal): Promise<{ config: Config; schedules: Schedule[]; reserves: Reserves }> => {
       const startAt = windowStart;
-      const [config, schedules] = await Promise.all([
+      const [config, schedules, reserves] = await Promise.all([
         apiClient.getConfig(signal),
         apiClient.getSchedules(
           {
             startAt,
-            endAt: startAt + preferences.guideLength * 60 * 60 * 1000,
+            endAt: startAt + (leadMinutes + preferences.guideLength * 60) * 60_000,
             isHalfWidth: preferences.isHalfWidthDisplayed,
             isFree: preferences.isShowOnlyFreePrograms ? true : undefined,
             GR: broadcast === "ALL" || broadcast === "GR",
@@ -408,15 +438,20 @@ export function GuideView() {
           },
           signal,
         ),
+        apiClient.getReserves({ type: "normal", isHalfWidth: preferences.isHalfWidthDisplayed, limit: 2000 }, signal),
       ]);
-      return { config, schedules };
+      return { config, schedules, reserves };
     },
-    [broadcast, preferences.guideLength, preferences.isHalfWidthDisplayed, preferences.isShowOnlyFreePrograms, windowStart],
+    [broadcast, leadMinutes, preferences.guideLength, preferences.isHalfWidthDisplayed, preferences.isShowOnlyFreePrograms, windowStart],
   );
   const resource = useApiResource(loadGuide);
-  const windowMinutes = preferences.guideLength * 60;
+  const windowMinutes = leadMinutes + preferences.guideLength * 60;
   const hasPrograms = resource.data?.schedules.some((schedule) => schedule.programs.length > 0) ?? false;
   const schedules = useMemo(() => resource.data?.schedules ?? [], [resource.data?.schedules]);
+  const reservedIds = useMemo(
+    () => reservedProgramIds(resource.data?.reserves.reserves ?? []),
+    [resource.data?.reserves.reserves],
+  );
 
   // config.broadcast は実際に受信できる放送波。読み込み前は全種別を出し、届き次第絞り込む。
   const availableBroadcastTypes = useMemo(
@@ -460,6 +495,8 @@ export function GuideView() {
             showChannelLogo={preferences.isShowGuideChannelLogos}
             columnScale={preferences.guideColumnScale}
             pixelsPerMinute={preferences.guidePixelsPerMinute}
+            reservedIds={reservedIds}
+            leadMinutes={leadMinutes}
             onSelectProgram={selectProgram}
             onSelectChannel={selectChannel}
           />

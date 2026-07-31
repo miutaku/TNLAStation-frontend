@@ -1,6 +1,6 @@
 "use client";
 
-import { Cpu, Eraser, Film, HardDrive, ListChecks, LockKeyhole, RefreshCw, Sparkles, Trash2, TriangleAlert, Upload } from "lucide-react";
+import { Cpu, Eraser, Film, HardDrive, Image as ImageIcon, ListChecks, LockKeyhole, RefreshCw, Sparkles, Trash2, TriangleAlert, Upload } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
@@ -44,6 +44,7 @@ import { apiClient } from "@/lib/api/client";
 import type { ChannelItem, Config, RecordedItem, Records, Rule } from "@/lib/api/types";
 import { formatBytes, formatDateTime, formatDuration, genreName } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
+import { createThumbnailPlan } from "@/lib/recorded-thumbnail";
 import { useChannelNames } from "@/lib/hooks/use-channel-names";
 import { usePreferences } from "@/lib/hooks/use-preferences";
 import { createRecordedDeletePlan, type FileDeleteOption } from "@/lib/recorded-deletion";
@@ -536,6 +537,32 @@ export function RecordedView() {
     resource.reload();
   };
 
+  const regenerateThumbnails = async () => {
+    const plan = createThumbnailPlan([...selectedIds], [...knownItems.values()]);
+    setBusy(true);
+    setActionError(null);
+    setActionMessage(null);
+    let done = 0;
+    const failed: number[] = [];
+    for (const target of plan.targets) {
+      try {
+        await apiClient.regenerateThumbnail(target);
+        done += 1;
+      } catch {
+        failed.push(target.recordedId);
+      }
+    }
+    setBusy(false);
+    exitSelectMode();
+    const skipped = plan.skipped.length + failed.length;
+    if (skipped > 0) {
+      setActionError(`${done} 件のサムネイルを作り直しました。${skipped} 件は作り直せませんでした。`);
+    } else {
+      setActionMessage(`${done} 件のサムネイルを作り直しました。`);
+    }
+    resource.reload();
+  };
+
   const cleanup = async () => {
     setBusy(true);
     setActionError(null);
@@ -600,6 +627,7 @@ export function RecordedView() {
             </fieldset>
             <Button type="button" variant="ghost" onClick={exitSelectMode} disabled={busy}>選択解除</Button>
             <Button type="button" variant="outline" disabled={busy || selectedIds.size === 0 || encodeModes.length === 0} onClick={openBulkEncodeDialog}><Cpu aria-hidden="true" />まとめてエンコード</Button>
+            <Button type="button" variant="outline" disabled={busy || selectedIds.size === 0} onClick={() => void regenerateThumbnails()}><ImageIcon aria-hidden="true" />サムネイル再生成</Button>
             <Button type="button" variant="destructive" disabled={busy || selectedIds.size === 0} onClick={openBulkDeleteDialog}><Trash2 aria-hidden="true" />まとめて削除</Button>
           </div>
         </div>
