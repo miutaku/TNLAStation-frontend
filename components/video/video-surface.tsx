@@ -100,8 +100,19 @@ function useStreamPlayback(source: string | null): [React.RefObject<HTMLVideoEle
         return;
       }
 
-      // ライブなので、遅れたら末尾へ追いつかせる。放送に対して溜め込む意味がない。
-      const hls = new Hls({ liveSyncDurationCount: 3 });
+      // ライブなので、遅れたら末尾へ追いつかせる。
+      const hls = new Hls({
+        liveSyncDurationCount: 3,
+        // LL-HLS は配信が始まるまでプレイリストが無い。
+        manifestLoadPolicy: {
+          default: {
+            maxTimeToFirstByteMs: 10_000,
+            maxLoadTimeMs: 20_000,
+            timeoutRetry: { maxNumRetry: 4, retryDelayMs: 500, maxRetryDelayMs: 2_000 },
+            errorRetry: { maxNumRetry: 10, retryDelayMs: 500, maxRetryDelayMs: 2_000 },
+          },
+        },
+      });
       player = hls;
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return;

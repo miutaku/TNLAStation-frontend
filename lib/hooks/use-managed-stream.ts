@@ -9,6 +9,25 @@ type StreamRequest =
   | { kind: "live"; channelId: number; streamType: string; mode: number }
   | { kind: "recorded"; videoFileId: number; streamType: string; mode: number; playPosition: number };
 
+/** stream id で寿命を管理する配信。プレイリストの場所は種別で決まり方が違う。 */
+const MANAGED_TYPES = ["hls", "lowlatency"];
+
+async function startManaged(
+  kind: StreamRequest["kind"],
+  streamType: string,
+  targetId: number,
+  mode: number,
+  playPosition: number,
+): Promise<{ streamId: StreamId; playlistUrl: string }> {
+  if (kind === "recorded") {
+    const id = await apiClient.startRecordedHls(targetId, playPosition, mode);
+    return { streamId: id, playlistUrl: apiClient.streamPlaylistUrl(id) };
+  }
+  if (streamType.toLowerCase() === "lowlatency") return apiClient.startLiveLowLatency(targetId, mode);
+  const id = await apiClient.startLiveHls(targetId, mode);
+  return { streamId: id, playlistUrl: apiClient.streamPlaylistUrl(id) };
+}
+
 export function useManagedStream(request: StreamRequest): {
   source: string | null;
   streamId: StreamId | null;
@@ -47,7 +66,7 @@ export function useManagedStream(request: StreamRequest): {
       setSource(null);
       setError(null);
       setIsLoading(true);
-      if (streamType.toLowerCase() !== "hls") {
+      if (!MANAGED_TYPES.includes(streamType.toLowerCase())) {
         const rawSource = kind === "live"
           ? apiClient.liveStreamUrl(targetId, streamType, mode)
           : apiClient.recordedStreamUrl(targetId, streamType, mode, playPosition);
@@ -56,21 +75,19 @@ export function useManagedStream(request: StreamRequest): {
         return;
       }
       try {
-        const id = kind === "live"
-          ? await apiClient.startLiveHls(targetId, mode)
-          : await apiClient.startRecordedHls(targetId, playPosition, mode);
+        const started = await startManaged(kind, streamType, targetId, mode, playPosition);
         if (cancelled) {
-          await apiClient.stopStream(id);
+          await apiClient.stopStream(started.streamId);
           return;
         }
-        activeStreamId.current = id;
-        setStreamId(id);
+        activeStreamId.current = started.streamId;
+        setStreamId(started.streamId);
         keepTimer.current = window.setInterval(() => {
           if (activeStreamId.current !== null) void apiClient.keepStream(activeStreamId.current).catch(() => undefined);
         }, 10_000);
         sourceTimer = window.setTimeout(() => {
           if (!cancelled) {
-            setSource(apiClient.streamPlaylistUrl(id));
+            setSource(started.playlistUrl);
             setIsLoading(false);
           }
         }, 750);

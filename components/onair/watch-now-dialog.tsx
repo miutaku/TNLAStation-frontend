@@ -9,10 +9,16 @@ import { Dialog } from "@/components/ui/dialog";
 import type { Config } from "@/lib/api/types";
 
 /** ブラウザで再生できるライブ配信の種別。無変換の m2ts だけは外部アプリ向けなので外す。 */
-const PLAYABLE_TYPES = ["m2tsll", "hls", "webm", "mp4"] as const;
+const PLAYABLE_TYPES = ["lowlatency", "m2tsll", "hls", "webm", "mp4"] as const;
 type PlayableType = (typeof PLAYABLE_TYPES)[number];
 
-const TYPE_LABEL: Record<PlayableType, string> = { m2tsll: "低遅延", hls: "HLS", webm: "WebM", mp4: "MP4" };
+const TYPE_LABEL: Record<PlayableType, string> = {
+  lowlatency: "低遅延 HLS",
+  m2tsll: "低遅延 TS",
+  hls: "HLS",
+  webm: "WebM",
+  mp4: "MP4",
+};
 
 interface StreamChoice {
   type: PlayableType;

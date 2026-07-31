@@ -346,6 +346,24 @@ describe("EpgStationApiClient", () => {
     expect(requested.map(({ endpoint, method }) => `${method} ${endpoint}`)).toContain("PUT /api/streams/705/keep");
   });
 
+  it("takes the LL-HLS playlist location from the server instead of deriving it", async () => {
+    const requested: string[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      requested.push(String(input));
+      return new Response(
+        JSON.stringify({ streamId: 706, playlistUrl: "/lowlatency/live/706/index.m3u8" }),
+        { status: 200 },
+      );
+    });
+    const client = new EpgStationApiClient({ baseUrl: "/api", fetcher });
+
+    await expect(client.startLiveLowLatency(1, 2)).resolves.toEqual({
+      streamId: 706,
+      playlistUrl: "/lowlatency/live/706/index.m3u8",
+    });
+    expect(requested).toContain("/api/streams/live/1/lowlatency?mode=2");
+  });
+
   it("builds direct video, stream and HLS playlist URLs under the configured base", () => {
     const client = new EpgStationApiClient({ baseUrl: "/epg/api", fetcher: vi.fn() });
 

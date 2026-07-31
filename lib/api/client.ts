@@ -313,6 +313,11 @@ export class EpgStationApiClient {
     return result.streamId;
   }
 
+  /** LL-HLS のプレイリストは配信サーバー上にあるので、場所はサーバーに教えてもらう。 */
+  startLiveLowLatency(channelId: number, mode: number, signal?: AbortSignal): Promise<{ streamId: StreamId; playlistUrl: string }> {
+    return this.get<{ streamId: StreamId; playlistUrl: string }>(`/streams/live/${channelId}/lowlatency`, { mode }, signal);
+  }
+
   async startRecordedHls(videoFileId: VideoFileId, playPosition: number, mode: number, signal?: AbortSignal): Promise<StreamId> {
     const result = await this.get<{ streamId: StreamId }>(`/streams/recorded/${videoFileId}/hls`, { ss: playPosition, mode }, signal);
     return result.streamId;

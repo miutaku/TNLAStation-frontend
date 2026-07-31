@@ -71,6 +71,8 @@ export interface Config {
         webm?: string[];
         mp4?: string[];
         hls?: string[];
+        /** EPGStation に無い TNLAStation の追加 (docs/compatibility.md)。 */
+        lowlatency?: string[];
       };
     };
     recorded?: {
@@ -392,7 +394,7 @@ export interface AddManualEncodeProgramOptions {
 export interface VersionInfo {
   backend: "other" | "tnlastation";
   backendVersion: string;
-  /** EPGStation互換APIとして返されるバージョン。 */
+  /** EPGStation 互換APIとして返されるバージョン。 */
   version: string;
 }
 
