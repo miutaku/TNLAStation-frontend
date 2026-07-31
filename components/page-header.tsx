@@ -4,6 +4,7 @@ export function PageHeader({
   title,
   description,
   titleActions,
+  subActions,
   actions,
 }: {
   /** 使わなくなった小見出し。既存の呼び出しを壊さないために受けるだけ。 */
@@ -11,6 +12,8 @@ export function PageHeader({
   title: string;
   description: string;
   titleActions?: ReactNode;
+  /** タイトルと説明の下。操作が多いときはこちらへ置く。 */
+  subActions?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
@@ -25,6 +28,7 @@ export function PageHeader({
         <p className="mt-2.5 min-w-0 max-w-2xl text-[0.95rem] leading-6 text-muted-foreground [overflow-wrap:anywhere] sm:text-base">
           {description}
         </p>
+        {subActions ? <div className="mt-4 flex max-w-full flex-wrap items-center gap-2">{subActions}</div> : null}
       </div>
       {actions ? <div className="flex max-w-full flex-wrap items-center gap-2 sm:justify-end">{actions}</div> : null}
     </header>

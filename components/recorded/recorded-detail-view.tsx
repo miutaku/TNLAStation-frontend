@@ -8,6 +8,7 @@ import { useCallback, useMemo, useState, type FormEvent } from "react";
 import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-state";
 import { PageHeader } from "@/components/page-header";
 import { RecordedTagEditor } from "@/components/recorded/recorded-tags";
+import { RecordedThumbnail } from "@/components/recorded/recorded-thumbnail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -193,7 +194,7 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
         eyebrow="Recording detail"
         title={recorded?.name ?? "録画詳細"}
         description={recorded ? `${formatDateTime(recorded.startAt)} ・ ${formatDuration(recorded.startAt, recorded.endAt)} ・ ${genreName(recorded.genre1)}` : "録画情報と動画ファイルを読み込んでいます。"}
-        titleActions={recorded ? (
+        subActions={recorded ? (
           <>
             {recorded.isProtected ? (
               <Button type="button" variant="outline" disabled={busy} onClick={() => setConfirmAction("unprotect")}>
@@ -228,6 +229,9 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
       {resource.error ? <ErrorState title="録画詳細を取得できませんでした" description={resource.error.message} onRetry={resource.reload} /> : null}
       {recorded && resource.data ? (
         <div className="space-y-6">
+          <div className="grid aspect-[16/7] place-items-center overflow-hidden rounded-2xl border bg-secondary">
+            <RecordedThumbnail item={recorded} />
+          </div>
 
           <Card>
             <CardHeader className="border-b">

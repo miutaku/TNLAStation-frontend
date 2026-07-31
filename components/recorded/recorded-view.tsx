@@ -1,6 +1,6 @@
 "use client";
 
-import { Cpu, Eraser, Film, HardDrive, Image as ImageIcon, ListChecks, LockKeyhole, RefreshCw, Sparkles, Trash2, TriangleAlert, Upload } from "lucide-react";
+import { Cpu, Eraser, HardDrive, Image as ImageIcon, ListChecks, LockKeyhole, RefreshCw, Sparkles, Trash2, TriangleAlert, Upload } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
@@ -40,6 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { RecordedThumbnail } from "@/components/recorded/recorded-thumbnail";
 import { useToast } from "@/components/ui/toast";
 import { apiClient } from "@/lib/api/client";
 import type { ChannelItem, Config, RecordedItem, Records, Rule } from "@/lib/api/types";
@@ -91,19 +92,11 @@ function RecordedCard({ item, showDropInfo, selectable, selected, onToggleSelect
               />
             </label>
           ) : null}
-          {item.thumbnails && item.thumbnails.length > 0 ? (
-            // 画像が無い録画も並ぶので、枠の大きさは変えない。
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={apiClient.thumbnailUrl(item.thumbnails[0])}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className="size-full object-cover transition-transform group-hover:scale-105"
-            />
-          ) : (
-            <Film aria-hidden="true" className="size-12 text-primary/55 transition-transform group-hover:scale-105" strokeWidth={1.3} />
-          )}
+          <RecordedThumbnail
+            item={item}
+            className="transition-transform group-hover:scale-105"
+            iconClassName="transition-transform group-hover:scale-105"
+          />
           <div className="absolute top-3 left-3 flex flex-wrap gap-2">
             {item.isRecording ? <Badge variant="destructive">録画中</Badge> : null}
             {item.isEncoding ? <Badge variant="warning">エンコード中</Badge> : null}
