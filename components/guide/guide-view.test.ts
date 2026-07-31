@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
-import { GUIDE_COLUMN_WIDTH_DESKTOP, GUIDE_COLUMN_WIDTH_MOBILE } from "./guide-view";
+import { GUIDE_COLUMN_WIDTH_DESKTOP, GUIDE_COLUMN_WIDTH_MOBILE, openingMinutesFor } from "./guide-view";
 
 describe("guide layout", () => {
   it("uses the EPGStation responsive channel widths for rendering and virtualization", () => {
@@ -32,5 +32,29 @@ describe("guide layout", () => {
 
     expect(source).toContain('"line-clamp-2 font-semibold [overflow-wrap:anywhere]"');
     expect(source).not.toContain('"truncate font-semibold"');
+  });
+});
+
+describe("openingMinutesFor", () => {
+  const date = "2026-08-01";
+  const midnight = Date.parse(`${date}T00:00:00+09:00`);
+  const noon = midnight + 12 * 60 * 60_000;
+
+  /** 直前の番組の途中が見えるよう、少しだけ前から見せる。 */
+  it("opens 15 minutes before now", () => {
+    expect(openingMinutesFor(date, noon, 11 * 60)).toBe(12 * 60 - 15);
+  });
+
+  it("never goes before the start of the day", () => {
+    expect(openingMinutesFor(date, midnight + 5 * 60_000, 0)).toBe(0);
+  });
+
+  /** 今日以外は 0 時から見せる。過ぎた時間という概念がない。 */
+  it("stays at the top for another day", () => {
+    expect(openingMinutesFor("2026-08-02", noon, 660)).toBe(0);
+  });
+
+  it("stays at the top before the clock is known", () => {
+    expect(openingMinutesFor(date, 0, 660)).toBe(0);
   });
 });

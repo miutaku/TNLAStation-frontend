@@ -34,13 +34,20 @@ function windowStartFor(date: string): number {
 }
 
 /**
- * 開いたときに見せたい位置 (窓の先頭からの分)。今日なら現在時刻の 1 時間前。
- * 時に丸めるので毎分は動かず、番組表を 1 分ごとに取り直さずに済む。
+ * 前へ遡れる幅 (窓の先頭からの分)。時に丸めるので毎分は動かず、番組表が 1 分ごとに
+ * 取り直されずに済む。
  */
 function leadMinutesFor(date: string, now: number): number {
   if (now <= 0 || date !== todayInJst()) return 0;
   const hourBefore = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
   return Math.max(0, (hourBefore - jstStartOfDate(date)) / 60_000);
+}
+
+/** 開いたときに見せる位置。直前の番組の途中が見えるよう、現在時刻の 15 分前から。 */
+export function openingMinutesFor(date: string, now: number, leadMinutes: number): number {
+  if (now <= 0 || date !== todayInJst()) return 0;
+  const target = (now - 15 * 60_000 - jstStartOfDate(date)) / 60_000;
+  return Math.min(Math.max(0, target), leadMinutes + 60);
 }
 
 function todayInJst(): string {
@@ -243,7 +250,7 @@ function GuideGrid({
   columnScale,
   pixelsPerMinute,
   reservedIds,
-  leadMinutes,
+  openingMinutes,
   onSelectProgram,
   onSelectChannel,
 }: {
@@ -257,8 +264,8 @@ function GuideGrid({
   columnScale: number;
   pixelsPerMinute: number;
   reservedIds: ReadonlySet<number>;
-  /** 窓の先頭から現在時刻の 1 時間前まで。開いたときここへ送る。 */
-  leadMinutes: number;
+  /** 開いたときに送る位置 (窓の先頭からの分)。 */
+  openingMinutes: number;
   onSelectProgram: (program: ScheduleProgramItem, channelName: string) => void;
   onSelectChannel: (channel: Schedule["channel"]) => void;
 }) {
@@ -287,7 +294,7 @@ function GuideGrid({
 
     // 列がまだ描かれていないと中身の高さが足りず、代入した位置は 0 へ丸められる。
     // 高さが目的の位置に届くまでフレームごとに試す。
-    const target = leadMinutes * pixelsPerMinute;
+    const target = openingMinutes * pixelsPerMinute;
     let frame = 0;
     const settle = () => {
       element.scrollTop = target;
@@ -299,7 +306,7 @@ function GuideGrid({
     };
     frame = requestAnimationFrame(settle);
     return () => cancelAnimationFrame(frame);
-  }, [leadMinutes, pixelsPerMinute, schedules]);
+  }, [openingMinutes, pixelsPerMinute, schedules]);
 
   useEffect(() => {
     if (drawMode !== "sequential" || sequentialCount >= schedules.length) return;
@@ -459,6 +466,7 @@ export function GuideView() {
   );
   const resource = useApiResource(loadGuide);
   const windowMinutes = leadMinutes + preferences.guideLength * 60;
+  const openingMinutes = useMemo(() => openingMinutesFor(date, now, leadMinutes), [date, leadMinutes, now]);
   const hasPrograms = resource.data?.schedules.some((schedule) => schedule.programs.length > 0) ?? false;
   const schedules = useMemo(() => resource.data?.schedules ?? [], [resource.data?.schedules]);
   const reserveIds = useMemo(
@@ -510,7 +518,7 @@ export function GuideView() {
             columnScale={preferences.guideColumnScale}
             pixelsPerMinute={preferences.guidePixelsPerMinute}
             reservedIds={reservedIds}
-            leadMinutes={leadMinutes}
+            openingMinutes={openingMinutes}
             onSelectProgram={selectProgram}
             onSelectChannel={selectChannel}
           />
