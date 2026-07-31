@@ -1,4 +1,4 @@
-import type { EditManualReserveOption, RecordedItem, ReserveItem } from "@/lib/api/types";
+import type { EditManualReserveOption, RecordedItem, ReserveId, ReserveItem } from "@/lib/api/types";
 
 /**
  * 録画中の番組に対応する予約を探す。録画は予約から始まるが `/api/recorded` は予約 id を
@@ -64,4 +64,22 @@ export function buildEncodeOnlyReserveUpdate(
       isDeleteOriginalAfterEncode: change.removeOriginal,
     },
   };
+}
+
+/**
+ * 送る直前の予約表から、書き込み先の id と内容をまとめて決める。
+ *
+ * 予約表は再生成のたびに行ごと入れ替わり、同じ番組でも id が変わる。画面を開いたときの
+ * id で `PUT /api/reserves/{id}` を叩くと `ReservationIsNotFound` の 500 になるので、
+ * id は必ずこの関数へ渡した最新の一覧から取る。
+ */
+export function resolveReserveEncodeUpdate(
+  item: RecordedItem,
+  reserves: readonly ReserveItem[],
+  change: { mode: string; removeOriginal: boolean },
+): { reserveId: ReserveId; update: EditManualReserveOption } | undefined {
+  const reserve = findReserveForRecording(item, reserves);
+  if (!reserve) return undefined;
+
+  return { reserveId: reserve.id, update: buildEncodeOnlyReserveUpdate(reserve, change) };
 }

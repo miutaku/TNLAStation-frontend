@@ -5,6 +5,7 @@ import {
   buildEncodeOnlyReserveUpdate,
   findReserveForRecording,
   reserveEncodeModes,
+  resolveReserveEncodeUpdate,
 } from "@/lib/recording-encode";
 
 const reserve = (overrides: Partial<ReserveItem> = {}): ReserveItem => ({
@@ -108,5 +109,35 @@ describe("buildEncodeOnlyReserveUpdate", () => {
 
     // 出力先だけが残ると上流の検査 (mode1 なしの directory1) で弾かれる。
     expect(update.encodeOption).toMatchObject({ mode1: undefined, directory1: undefined, mode2: "H.265" });
+  });
+});
+
+describe("resolveReserveEncodeUpdate", () => {
+  it("書き込み先の id は渡された一覧から取る", () => {
+    // 予約表は再生成のたびに行ごと入れ替わり、同じ番組でも id が変わる。古い id で
+    // 書くと ReservationIsNotFound の 500 になるため、送る直前の一覧が唯一の出どころ。
+    const regenerated = reserve({ id: 44759, programId: 77, encodeMode1: "H.264" });
+
+    const resolved = resolveReserveEncodeUpdate(
+      recording({ programId: 77 }),
+      [regenerated],
+      { mode: "H.265", removeOriginal: true },
+    );
+
+    expect(resolved?.reserveId).toBe(44759);
+    expect(resolved?.update.encodeOption).toMatchObject({
+      mode1: "H.265",
+      isDeleteOriginalAfterEncode: true,
+    });
+  });
+
+  it("一覧に無ければ undefined を返し、呼び出し側に書かせない", () => {
+    const resolved = resolveReserveEncodeUpdate(
+      recording({ programId: 77 }),
+      [reserve({ id: 1, programId: 78, channelId: 200, startAt: 9 })],
+      { mode: "H.265", removeOriginal: false },
+    );
+
+    expect(resolved).toBeUndefined();
   });
 });

@@ -41,9 +41,9 @@ import { useChannelNames } from "@/lib/hooks/use-channel-names";
 import { useRevalidateOnFocus } from "@/lib/hooks/use-revalidate-on-focus";
 import { usePreferences } from "@/lib/hooks/use-preferences";
 import {
-  buildEncodeOnlyReserveUpdate,
   findReserveForRecording,
   reserveEncodeModes,
+  resolveReserveEncodeUpdate,
 } from "@/lib/recording-encode";
 
 const recordingTableColumns = [
@@ -316,6 +316,7 @@ export function RecordingView() {
     };
   }, []);
   useRevalidateOnFocus(resource);
+  useRevalidateOnFocus(encodeSettings);
 
   const openEncodeDialog = (item: RecordedItem) => {
     const reserve = reserveFor(item);
@@ -331,19 +332,21 @@ export function RecordingView() {
    * 最新の予約を見るため、この変更が実際に走るエンコードへ効く。
    */
   const saveEncodeSetting = async () => {
-    if (!encodeTarget || !encodeTargetReserve) return;
+    if (!encodeTarget) return;
 
     setSavingEncode(true);
     setActionMessage(null);
     setActionError(null);
     try {
-      await apiClient.updateReserve(
-        encodeTargetReserve.id,
-        buildEncodeOnlyReserveUpdate(
-          encodeTargetReserve,
-          { mode: encodeMode, removeOriginal: encodeRemoveOriginal },
-        ),
+      const resolved = resolveReserveEncodeUpdate(
+        encodeTarget,
+        encodeSettings.data?.reserves ?? [],
+        { mode: encodeMode, removeOriginal: encodeRemoveOriginal },
       );
+      // 録画が止まった、スキップされたなど、予約そのものが消えている場合。
+      if (!resolved) throw new Error("この録画の予約が見つかりませんでした。一覧を更新してからやり直してください。");
+
+      await apiClient.updateReserve(resolved.reserveId, resolved.update);
       setEncodeTarget(null);
       setActionMessage(
         encodeMode
