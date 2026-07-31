@@ -232,6 +232,24 @@ export function GlassTabBar({
   }, []);
 
   /**
+   * ボタンの数や幅が変わってもインジケーターを追従させる。active が変わるまで測り直さないと、
+   * 数が減った直後は前の幅のまま残り、別のタブを押すまで直らない。
+   * 画面幅は変わらないので resize では拾えない。
+   */
+  useEffect(() => {
+    const glass = glassRef.current;
+    if (glass === null || typeof ResizeObserver === "undefined") {
+      syncLayoutRef.current();
+      return;
+    }
+
+    const observer = new ResizeObserver(() => syncLayoutRef.current());
+    observer.observe(glass);
+    for (const button of buttonRefs.current.values()) observer.observe(button);
+    return () => observer.disconnect();
+  }, [items]);
+
+  /**
    * 選択中タブの再タップでインジケーターを潰す。移動アニメーション中なら
    * 今の描画位置を読み取ってから再生し、別の位置へワープしないようにする。
    */

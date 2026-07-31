@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { parseTranslateX, resolveActiveBottomTab } from "./glass-tab-bar";
@@ -90,5 +92,29 @@ describe("resolveActiveBottomTab", () => {
       pathname: "/guide",
       pendingSecondaryHref: null,
     })).toBe("/guide");
+  });
+});
+
+describe("インジケーターの追従", () => {
+  const source = readFileSync(new URL("./glass-tab-bar.tsx", import.meta.url), "utf8");
+
+  /**
+   * ボタンの数が変わっても幅を測り直す。active が変わるまで測り直さないと、数が減った直後は
+   * 前の幅のまま残り、別のタブを押すまで直らない。画面幅は変わらないので resize では拾えない。
+   */
+  it("re-measures when the buttons change, not only on resize", () => {
+    const observer = source.indexOf("new ResizeObserver");
+    expect(observer).toBeGreaterThan(-1);
+
+    // 監視の張り直しが items に紐づいていること。
+    const dependency = source.indexOf("}, [items]);", observer);
+    expect(dependency).toBeGreaterThan(observer);
+
+    // 器だけでなくボタンそれぞれも見る。数が変われば各ボタンの幅も変わる。
+    expect(source.slice(observer, dependency)).toContain("buttonRefs.current.values()");
+  });
+
+  it("still falls back to a direct sync where ResizeObserver is missing", () => {
+    expect(source).toContain('typeof ResizeObserver === "undefined"');
   });
 });
