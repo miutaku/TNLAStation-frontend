@@ -327,10 +327,7 @@ export function RecordingView() {
     setEncodeRemoveOriginal(reserve.isDeleteOriginalAfterEncode);
   };
 
-  /**
-   * 予約を書き換えるだけなので受信は続く。積むのは録画が終わってからで、そのときに
-   * 最新の予約を見るため、この変更が実際に走るエンコードへ効く。
-   */
+  /** 予約を書き換えるだけなので受信は続く。積むのは終了後なのでこの変更が効く。 */
   const saveEncodeSetting = async () => {
     if (!encodeTarget) return;
 

@@ -1,9 +1,6 @@
 import type { EditManualReserveOption, RecordedItem, ReserveId, ReserveItem } from "@/lib/api/types";
 
-/**
- * 録画中の番組に対応する予約を探す。録画は予約から始まるが `/api/recorded` は予約 id を
- * 返さないので、番組 id — 時刻指定予約なら放送局と開始時刻 — で引き当てる。
- */
+/** `/api/recorded` は予約 id を返さないので、番組 id (無ければ放送局と開始時刻) で引く。 */
 export function findReserveForRecording(
   item: RecordedItem,
   reserves: readonly ReserveItem[],
@@ -25,10 +22,7 @@ export function reserveEncodeModes(reserve: ReserveItem): string[] {
   );
 }
 
-/**
- * エンコード設定だけを差し替える更新内容を作る。`PUT /api/reserves/{id}` は予約全体を
- * 受け取るので、送らなかった項目は消える。画面で触らない保存先やタグはそのまま返す。
- */
+/** PUT は予約全体を受け取り、送らなかった項目は消える。画面で触らない値も返す。 */
 export function buildEncodeOnlyReserveUpdate(
   reserve: ReserveItem,
   change: { mode: string; removeOriginal: boolean },
@@ -66,13 +60,7 @@ export function buildEncodeOnlyReserveUpdate(
   };
 }
 
-/**
- * 送る直前の予約表から、書き込み先の id と内容をまとめて決める。
- *
- * 予約表は再生成のたびに行ごと入れ替わり、同じ番組でも id が変わる。画面を開いたときの
- * id で `PUT /api/reserves/{id}` を叩くと `ReservationIsNotFound` の 500 になるので、
- * id は必ずこの関数へ渡した最新の一覧から取る。
- */
+/** 書き込み先の id は渡された一覧から引く。画面が持つ id を宛先にしない。 */
 export function resolveReserveEncodeUpdate(
   item: RecordedItem,
   reserves: readonly ReserveItem[],

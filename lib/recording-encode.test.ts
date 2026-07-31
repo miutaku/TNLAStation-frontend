@@ -114,8 +114,7 @@ describe("buildEncodeOnlyReserveUpdate", () => {
 
 describe("resolveReserveEncodeUpdate", () => {
   it("書き込み先の id は渡された一覧から取る", () => {
-    // 予約表は再生成のたびに行ごと入れ替わり、同じ番組でも id が変わる。古い id で
-    // 書くと ReservationIsNotFound の 500 になるため、送る直前の一覧が唯一の出どころ。
+    // id の出どころは渡された一覧だけ。行が作り直されても番組から引き直せる。
     const regenerated = reserve({ id: 44759, programId: 77, encodeMode1: "H.264" });
 
     const resolved = resolveReserveEncodeUpdate(

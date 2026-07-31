@@ -25,11 +25,7 @@ export const recordedEncodeSkipLabel: Record<RecordedEncodeSkipReason, string> =
   "no-source": "元 TS がありません",
 };
 
-/**
- * まとめてエンコードの対象を決める。元にするのは放送そのままの TS —
- * エンコード済みを選べると、どの世代から変換したのか一覧から追えなくなる。
- * 積めないものは黙って落とさず、理由を付けて返す。
- */
+/** 変換元は放送そのままの TS。積めないものは理由を付けて返す。 */
 export function createRecordedEncodePlan(
   ids: readonly RecordedId[],
   items: ReadonlyMap<RecordedId, RecordedItem>,
