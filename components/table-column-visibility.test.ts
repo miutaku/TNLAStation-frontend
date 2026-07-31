@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   parseStoredTableColumns,
   TableColumnVisibilityMenu,
+  TableColumnVisibilityPanel,
   type TableColumnVisibilityState,
 } from "./table-column-visibility";
 
@@ -75,14 +76,20 @@ describe("TableColumnVisibilityMenu", () => {
       moveDown: vi.fn(),
     };
 
-    const markup = renderToStaticMarkup(
+    // 開くまで中身は描かれない (画面直下へ出すため)。閉じた状態はボタンだけ。
+    const closed = renderToStaticMarkup(
       createElement(TableColumnVisibilityMenu<"title" | "station">, { state, label: "予約一覧の列" }),
     );
-    expect(markup).toContain("予約一覧の列を選択");
-    expect(markup).toContain("1列以上必要です");
-    expect(markup).toContain('type="checkbox"');
-    expect(markup).toContain("disabled");
-    expect(markup).toContain("を上へ移動");
-    expect(markup).toContain("を下へ移動");
+    expect(closed).toContain("予約一覧の列を選択");
+    expect(closed).not.toContain('type="checkbox"');
+
+    const panel = renderToStaticMarkup(
+      createElement(TableColumnVisibilityPanel<"title" | "station">, { state, hintId: "hint" }),
+    );
+    expect(panel).toContain("1列以上必要です");
+    expect(panel).toContain('type="checkbox"');
+    expect(panel).toContain("disabled");
+    expect(panel).toContain("を上へ移動");
+    expect(panel).toContain("を下へ移動");
   });
 });

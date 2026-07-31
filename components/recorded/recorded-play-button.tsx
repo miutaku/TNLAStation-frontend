@@ -4,6 +4,7 @@ import { ChevronDown, Play } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { AnchoredMenu } from "@/components/ui/anchored-menu";
 import { Button } from "@/components/ui/button";
 import type { RecordedItem } from "@/lib/api/types";
 import { defaultPlaybackFileId, playableFiles, playbackHref, playbackLabel } from "@/lib/recorded-playback";
@@ -14,6 +15,7 @@ import { defaultPlaybackFileId, playableFiles, playbackHref, playbackLabel } fro
  */
 export function RecordedPlayButton({ item, size = "sm" }: { item: RecordedItem; size?: "sm" | "default" }) {
   const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const files = playableFiles(item.videoFiles ?? []);
   const firstId = defaultPlaybackFileId(files);
   if (firstId === null) return null;
@@ -28,16 +30,23 @@ export function RecordedPlayButton({ item, size = "sm" }: { item: RecordedItem; 
   }
 
   return (
-    <span className="relative inline-flex">
-      <Button size={size} variant="outline" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="menu">
+    <>
+      <Button
+        ref={setAnchor}
+        size={size}
+        variant="outline"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={`${item.name} を再生`}
+      >
         <Play aria-hidden="true" />再生<ChevronDown aria-hidden="true" className="size-3.5" />
       </Button>
-      {open ? (
-        <span role="menu" className="glass-panel absolute top-full right-0 z-30 mt-1 flex min-w-44 flex-col rounded-lg border p-1 shadow-lg">
+      <AnchoredMenu open={open} anchor={anchor} title="再生するファイル" width={240} onClose={() => setOpen(false)}>
+        <div className="flex flex-col">
           {files.map((file) => (
             <Link
               key={file.id}
-              role="menuitem"
               href={playbackHref(file, item.id)}
               className="rounded px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
               onClick={() => setOpen(false)}
@@ -45,8 +54,8 @@ export function RecordedPlayButton({ item, size = "sm" }: { item: RecordedItem; 
               {playbackLabel(file)}
             </Link>
           ))}
-        </span>
-      ) : null}
-    </span>
+        </div>
+      </AnchoredMenu>
+    </>
   );
 }

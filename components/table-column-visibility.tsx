@@ -1,8 +1,9 @@
 "use client";
 
 import { ChevronDown, ChevronUp, Columns3 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 
+import { AnchoredMenu } from "@/components/ui/anchored-menu";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -193,83 +194,49 @@ export function TableColumnVisibilityMenu<Key extends string>({
   className?: string;
 }) {
   const hintId = `table-columns-${label.replace(/\s+/g, "-")}-hint`;
-  const detailsRef = useRef<HTMLDetailsElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  // 「列」ボタンはツールバー内のどこにでも置かれうるため、右寄せ (right-0) のままだと
-  // 幅の狭い画面でボタンの右端から左へ張り出したメニューが画面外へこぼれる。開いた直後に
-  // 実測し、左端が画面からはみ出す場合だけ left へ切り替えて画面内に収める。
-  //
-  // モバイルは下端に固定のボトムタブバーがあり (z-50)、ボタンがページ下部にあるとメニューが
-  // 下向きに開いてボトムバーの裏に重なり、重なった部分のボタン・チェックボックスが押せなく
-  // なっていた。ボトムバーの領域に掛かりそうなときは上向きに開き直す。
-  useEffect(() => {
-    const details = detailsRef.current;
-    const popover = popoverRef.current;
-    if (!details || !popover) return;
-
-    const MARGIN = 12;
-    // モバイルのボトムタブバー (高さ + 余白 + セーフエリア) を避けるための下端の予約幅。
-    // ボトムバーは lg 以上では表示されない。
-    const BOTTOM_NAV_RESERVE = 128;
-    const reposition = () => {
-      if (!details.open) return;
-      popover.style.left = "";
-      popover.style.right = "0px";
-      popover.style.top = "";
-      popover.style.bottom = "";
-      popover.style.marginTop = "";
-      popover.style.marginBottom = "";
-
-      const detailsRect = details.getBoundingClientRect();
-      const rect = popover.getBoundingClientRect();
-      if (rect.left < MARGIN) {
-        popover.style.right = "auto";
-        popover.style.left = `${MARGIN - detailsRect.left}px`;
-      }
-
-      const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
-      const bottomLimit = window.innerHeight - (isDesktop ? MARGIN : BOTTOM_NAV_RESERVE);
-      if (rect.bottom > bottomLimit) {
-        popover.style.top = "auto";
-        popover.style.bottom = "100%";
-        popover.style.marginTop = "0px";
-        popover.style.marginBottom = "0.5rem";
-      }
-    };
-
-    const onToggle = () => {
-      if (details.open) requestAnimationFrame(reposition);
-    };
-
-    details.addEventListener("toggle", onToggle);
-    window.addEventListener("resize", reposition);
-    return () => {
-      details.removeEventListener("toggle", onToggle);
-      window.removeEventListener("resize", reposition);
-    };
-  }, []);
+  const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  const close = useCallback(() => setOpen(false), []);
 
   return (
-    <details ref={detailsRef} className={cn("relative shrink-0", className)}>
-      <summary
-        className="inline-flex h-9 cursor-pointer list-none items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&::-webkit-details-marker]:hidden"
+    <div className={cn("shrink-0", className)}>
+      <Button
+        ref={setAnchor}
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-9"
+        aria-haspopup="dialog"
+        aria-expanded={open}
         aria-label={`${label}を選択`}
         title={`${label}を選択`}
+        onClick={() => setOpen((current) => !current)}
       >
         <Columns3 aria-hidden="true" className="size-4" />
         <span>列</span>
-      </summary>
-      <div
-        ref={popoverRef}
-        className="absolute right-0 z-[60] mt-2 w-[min(18rem,calc(100vw-1.5rem))] rounded-xl border bg-popover p-3 text-popover-foreground shadow-lg"
-      >
-        <fieldset aria-describedby={hintId}>
-          <legend className="mb-2 text-sm font-semibold">{label}</legend>
+      </Button>
+      <AnchoredMenu open={open} anchor={anchor} title={label} onClose={close}>
+        <TableColumnVisibilityPanel state={state} hintId={hintId} />
+      </AnchoredMenu>
+    </div>
+  );
+}
+
+/** メニューの中身。開閉と配置は AnchoredMenu が持つ。 */
+export function TableColumnVisibilityPanel<Key extends string>({
+  state,
+  hintId,
+}: {
+  state: TableColumnVisibilityState<Key>;
+  hintId: string;
+}) {
+  return (
+    <>
+      <fieldset aria-describedby={hintId}>
           <p id={hintId} className="mb-2 text-xs leading-5 text-muted-foreground">
             表示する列と並び順を選べます。1列以上必要です。
           </p>
-          <div className="max-h-72 space-y-1 overflow-y-auto overscroll-contain">
+          <div className="space-y-1">
             {state.columns.map((column, index) => {
               const visible = state.isVisible(column.key);
               const isLastVisible = visible && state.visibleCount === 1;
@@ -321,17 +288,16 @@ export function TableColumnVisibilityMenu<Key extends string>({
             })}
           </div>
         </fieldset>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="mt-2 w-full"
-          disabled={state.visibleCount === state.columns.length}
-          onClick={state.showAll}
-        >
-          すべて選択
-        </Button>
-      </div>
-    </details>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="mt-2 w-full"
+        disabled={state.visibleCount === state.columns.length}
+        onClick={state.showAll}
+      >
+        すべて選択
+      </Button>
+    </>
   );
 }
