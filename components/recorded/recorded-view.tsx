@@ -1,6 +1,6 @@
 "use client";
 
-import { Cpu, Eraser, HardDrive, Image as ImageIcon, ListChecks, LockKeyhole, RefreshCw, Sparkles, Trash2, TriangleAlert, Upload } from "lucide-react";
+import { Cpu, Eraser, HardDrive, Image as ImageIcon, ListChecks, LockKeyhole, RefreshCw, Sparkles, Square, Trash2, TriangleAlert, Upload } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
@@ -70,7 +70,6 @@ const recordedTableColumns = [
 ] as const;
 type RecordedTableColumn = (typeof recordedTableColumns)[number]["key"];
 type BulkDeleteOption = FileDeleteOption;
-type SelectionScope = "page" | "all";
 
 function RecordedCard({ item, showDropInfo, selectable, selected, onToggleSelect, viewMode }: { item: RecordedItem; showDropInfo: boolean; selectable: boolean; selected: boolean; onToggleSelect: (id: number) => void; viewMode: CollectionViewMode }) {
   const channelName = useChannelNames();
@@ -281,7 +280,6 @@ export function RecordedView() {
   const [originalOnly, setOriginalOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [selectMode, setSelectMode] = useState(false);
-  const [selectionScope, setSelectionScope] = useState<SelectionScope>("page");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [selectingAll, setSelectingAll] = useState(false);
   /** 他ページで選択した録画も、削除対象のファイルを判定できるよう覚えておく。 */
@@ -352,13 +350,6 @@ export function RecordedView() {
     });
   }, [resource.data]);
 
-  // 「このページ」を選んでいる間は、ページ移動後も表示中の番組だけを選択対象にする。
-  useEffect(() => {
-    if (!selectMode || selectionScope !== "page" || !resource.data?.records) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedIds(new Set(resource.data.records.map((item) => item.id)));
-  }, [resource.data, selectMode, selectionScope]);
-
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSearch({ ...draftSearch, keyword: draftSearch.keyword.trim() });
@@ -390,10 +381,8 @@ export function RecordedView() {
   };
 
   const enterSelectMode = () => {
-    setSelectionScope("page");
     setSelectMode(true);
-    const records = resource.data?.records ?? [];
-    setSelectedIds(new Set(records.map((item) => item.id)));
+    setSelectedIds(new Set());
   };
 
   /**
@@ -426,13 +415,10 @@ export function RecordedView() {
     }
   };
 
-  const changeSelectionScope = (scope: SelectionScope) => {
-    setSelectionScope(scope);
-    if (scope === "page") {
-      setSelectedIds(new Set((resource.data?.records ?? []).map((item) => item.id)));
-    } else {
-      void selectAllPrograms();
-    }
+  /** 表示中のページだけを足す。すでに選んだ他ページの分は残す。 */
+  const selectCurrentPage = () => {
+    const records = resource.data?.records ?? [];
+    setSelectedIds((current) => new Set([...current, ...records.map((item) => item.id)]));
   };
 
   const deleteSelected = async () => {
@@ -618,35 +604,22 @@ export function RecordedView() {
       ) : null}
 
       {selectMode ? (
-        <div className="mb-5 flex flex-col gap-3 glass-panel rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-medium"><span className="tabular-nums text-foreground">{selectedIds.size}</span> 件を選択中</p>
-          <div className="flex flex-wrap gap-2">
-            <fieldset className="flex flex-wrap items-center gap-3" disabled={busy || selectingAll}>
-              <legend className="sr-only">番組の選択範囲</legend>
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted">
-                <input
-                  type="radio"
-                  name="recorded-selection-scope"
-                  value="page"
-                  checked={selectionScope === "page"}
-                  onChange={() => changeSelectionScope("page")}
-                  className="size-4 accent-[var(--primary)]"
-                />
-                このページの全番組を選択
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted">
-                <input
-                  type="radio"
-                  name="recorded-selection-scope"
-                  value="all"
-                  checked={selectionScope === "all"}
-                  onChange={() => changeSelectionScope("all")}
-                  className="size-4 accent-[var(--primary)]"
-                />
-                {selectingAll ? "全番組を取得中…" : "すべての番組を選択"}
-              </label>
-            </fieldset>
-            <Button type="button" variant="ghost" onClick={exitSelectMode} disabled={busy}>選択解除</Button>
+        <div className="mb-5 glass-panel flex flex-col gap-3 rounded-2xl p-4">
+          {/* 選ぶ操作と、選んだものへの操作を分ける。並べると押し間違える。 */}
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="mr-1 text-sm font-medium"><span className="tabular-nums text-foreground">{selectedIds.size}</span> 件を選択中</p>
+            <Button type="button" size="sm" variant="outline" disabled={busy || selectingAll} onClick={selectCurrentPage}>
+              <ListChecks aria-hidden="true" />このページを選択
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={busy || selectingAll} onClick={() => void selectAllPrograms()}>
+              <ListChecks aria-hidden="true" />{selectingAll ? "全番組を取得中…" : "すべて選択"}
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={busy || selectedIds.size === 0} onClick={() => setSelectedIds(new Set())}>
+              <Square aria-hidden="true" />選択を解除
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={exitSelectMode} disabled={busy}>選択をやめる</Button>
+          </div>
+          <div className="flex flex-wrap gap-2 border-t pt-3">
             <Button type="button" variant="outline" disabled={busy || selectedIds.size === 0 || encodeModes.length === 0} onClick={openBulkEncodeDialog}><Cpu aria-hidden="true" />まとめてエンコード</Button>
             <Button type="button" variant="outline" disabled={busy || selectedIds.size === 0} onClick={() => void regenerateThumbnails()}><ImageIcon aria-hidden="true" />サムネイル再生成</Button>
             <Button type="button" variant="destructive" disabled={busy || selectedIds.size === 0} onClick={openBulkDeleteDialog}><Trash2 aria-hidden="true" />まとめて削除</Button>
