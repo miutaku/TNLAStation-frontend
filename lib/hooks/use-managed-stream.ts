@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiClient } from "@/lib/api/client";
+import { waitForPlaylist } from "@/lib/playlist-readiness";
+import { describeStreamFailure } from "@/lib/stream-errors";
 import type { StreamId } from "@/lib/api/types";
 
 type StreamRequest =
@@ -34,11 +36,13 @@ export function useManagedStream(request: StreamRequest): {
   isLoading: boolean;
   error: Error | null;
   stop: () => Promise<void>;
+  retry: () => void;
 } {
   const [source, setSource] = useState<string | null>(null);
   const [streamId, setStreamId] = useState<StreamId | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const activeStreamId = useRef<StreamId | null>(null);
   const keepTimer = useRef<number | null>(null);
   const kind = request.kind;
@@ -61,7 +65,6 @@ export function useManagedStream(request: StreamRequest): {
 
   useEffect(() => {
     let cancelled = false;
-    let sourceTimer: number | null = null;
     const start = async () => {
       setSource(null);
       setError(null);
@@ -85,15 +88,18 @@ export function useManagedStream(request: StreamRequest): {
         keepTimer.current = window.setInterval(() => {
           if (activeStreamId.current !== null) void apiClient.keepStream(activeStreamId.current).catch(() => undefined);
         }, 10_000);
-        sourceTimer = window.setTimeout(() => {
-          if (!cancelled) {
-            setSource(started.playlistUrl);
-            setIsLoading(false);
-          }
-        }, 750);
+        const ready = await waitForPlaylist(started.playlistUrl, () => cancelled);
+        if (cancelled) return;
+        if (!ready) {
+          setError(new Error("配信の準備ができませんでした。"));
+          setIsLoading(false);
+          return;
+        }
+        setSource(started.playlistUrl);
+        setIsLoading(false);
       } catch (reason) {
         if (cancelled) return;
-        setError(reason instanceof Error ? reason : new Error("ストリームを開始できませんでした。"));
+        setError(describeStreamFailure(reason));
         setIsLoading(false);
       }
     };
@@ -101,7 +107,6 @@ export function useManagedStream(request: StreamRequest): {
 
     return () => {
       cancelled = true;
-      if (sourceTimer !== null) window.clearTimeout(sourceTimer);
       if (keepTimer.current !== null) {
         window.clearInterval(keepTimer.current);
         keepTimer.current = null;
@@ -110,7 +115,7 @@ export function useManagedStream(request: StreamRequest): {
       activeStreamId.current = null;
       if (id !== null) void apiClient.stopStream(id).catch(() => undefined);
     };
-  }, [kind, mode, playPosition, streamType, targetId]);
+  }, [attempt, kind, mode, playPosition, streamType, targetId]);
 
-  return { source, streamId, isLoading, error, stop };
+  return { source, streamId, isLoading, error, stop, retry: () => setAttempt((count) => count + 1) };
 }

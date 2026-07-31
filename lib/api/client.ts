@@ -44,13 +44,15 @@ export class ApiError extends Error {
   readonly status: number;
   readonly endpoint: string;
   readonly detail?: string;
+  readonly reason?: string;
 
-  constructor(message: string, status: number, endpoint: string, detail?: string) {
+  constructor(message: string, status: number, endpoint: string, detail?: string, reason?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.endpoint = endpoint;
     this.detail = detail;
+    this.reason = reason;
   }
 }
 
@@ -81,15 +83,18 @@ export function appendQuery(path: string, query?: Query): string {
   return queryString ? `${path}?${queryString}` : path;
 }
 
-async function readErrorDetail(response: Response): Promise<string | undefined> {
+async function readErrorBody(response: Response): Promise<{ detail?: string; reason?: string }> {
   try {
     const body: unknown = await response.json();
-    if (typeof body === "string") return body;
-    if (body && typeof body === "object" && "message" in body && typeof body.message === "string") return body.message;
+    if (typeof body === "string") return { detail: body };
+    if (!body || typeof body !== "object") return {};
+    const detail = "message" in body && typeof body.message === "string" ? body.message : undefined;
+    const reason = "errors" in body && typeof body.errors === "string" ? body.errors : undefined;
+    return { detail, reason };
   } catch {
     // A non-JSON error response is valid; the HTTP status still carries the failure.
   }
-  return undefined;
+  return {};
 }
 
 export class EpgStationApiClient {
@@ -123,9 +128,10 @@ export class EpgStationApiClient {
     });
 
     if (!response.ok) {
-      const detail = await readErrorDetail(response);
-      const message = `TNLAStation API returned ${response.status}${detail ? `: ${detail}` : ""}`;
-      throw new ApiError(message, response.status, endpoint, detail);
+      const { detail, reason } = await readErrorBody(response);
+      const described = reason ?? detail;
+      const message = `TNLAStation API returned ${response.status}${described ? `: ${described}` : ""}`;
+      throw new ApiError(message, response.status, endpoint, detail, reason);
     }
 
     return response;

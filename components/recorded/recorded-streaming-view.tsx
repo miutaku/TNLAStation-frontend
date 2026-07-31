@@ -52,7 +52,7 @@ export function RecordedStreamingView({ videoFileId, recordedId, streamType, mod
       <div className="mx-auto max-w-6xl">
         {stopError ? <Alert role="alert" className="mb-4 border-destructive/40"><AlertDescription>{stopError}</AlertDescription></Alert> : null}
         {stream.streamId !== null ? <Badge variant="success" className="mb-3">Stream #{stream.streamId}</Badge> : null}
-        <VideoSurface source={stream.source} label={resource.data ? `${resource.data.name} のストリーミング再生` : "録画ストリーミング"} isLoading={stream.isLoading} error={stream.error} />
+        <VideoSurface source={stream.source} label={resource.data ? `${resource.data.name} のストリーミング再生` : "録画ストリーミング"} isLoading={stream.isLoading} error={stream.error} onRetry={stream.retry} />
         {resource.isLoading ? <div className="mt-5"><ContentSkeleton cards={1} /></div> : null}
         {resource.error ? <div className="mt-5"><ErrorState title="番組情報を取得できませんでした" description={resource.error.message} onRetry={resource.reload} /></div> : null}
       </div>

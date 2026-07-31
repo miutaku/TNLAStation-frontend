@@ -65,7 +65,7 @@ export function OnAirWatchView({ channelId, streamType, mode }: { channelId: num
       <div className="mx-auto max-w-6xl">
         {stopError ? <Alert role="alert" className="mb-4 border-destructive/40"><AlertDescription>{stopError}</AlertDescription></Alert> : null}
         <div className="mb-3 flex flex-wrap gap-2">{stream.streamId !== null ? <Badge variant="success">Stream #{stream.streamId}</Badge> : null}{resource.data?.channel ? <Badge variant="outline"><Radio aria-hidden="true" />{resource.data.channel.channelType} ・ {resource.data.channel.remoteControlKeyId ? `${resource.data.channel.remoteControlKeyId}ch` : resource.data.channel.channel}</Badge> : null}</div>
-        <VideoSurface source={stream.source} label={`${title} のライブ再生`} isLoading={stream.isLoading} error={stream.error} />
+        <VideoSurface source={stream.source} label={`${title} のライブ再生`} isLoading={stream.isLoading} error={stream.error} onRetry={stream.retry} />
         {resource.isLoading ? <div className="mt-5"><ContentSkeleton cards={1} /></div> : null}
         {resource.error ? <div className="mt-5"><ErrorState title="放送情報を取得できませんでした" description={resource.error.message} onRetry={resource.reload} /></div> : null}
         {resource.data?.program ? <Card className="mt-5"><CardContent className="pt-5 sm:pt-6"><p className="text-xs font-medium text-primary">{formatTime(resource.data.program.startAt)} – {formatTime(resource.data.program.endAt)}</p><h2 className="mt-2 font-semibold">{resource.data.program.name}</h2><p className="mt-2 text-sm leading-7 text-muted-foreground">{resource.data.program.description || "番組概要はありません。"}</p></CardContent></Card> : null}

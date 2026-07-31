@@ -364,6 +364,20 @@ describe("EpgStationApiClient", () => {
     expect(requested).toContain("/api/streams/live/1/lowlatency?mode=2");
   });
 
+  it("keeps the errors code so callers can tell failures apart", async () => {
+    const fetcher = vi.fn(async () => new Response(
+      JSON.stringify({ code: 500, message: "Internal Server Error", errors: "StreamIsFull" }),
+      { status: 500 },
+    ));
+    const client = new EpgStationApiClient({ baseUrl: "/api", fetcher });
+
+    await expect(client.startLiveLowLatency(1, 0)).rejects.toMatchObject({
+      status: 500,
+      reason: "StreamIsFull",
+      detail: "Internal Server Error",
+    });
+  });
+
   it("builds direct video, stream and HLS playlist URLs under the configured base", () => {
     const client = new EpgStationApiClient({ baseUrl: "/epg/api", fetcher: vi.fn() });
 

@@ -1,9 +1,10 @@
 "use client";
 
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 
 async function startPlayback(video: HTMLVideoElement): Promise<void> {
@@ -139,11 +140,13 @@ export function VideoSurface({
   label,
   isLoading = false,
   error = null,
+  onRetry,
 }: {
   source: string | null;
   label: string;
   isLoading?: boolean;
   error?: Error | null;
+  onRetry?: () => void;
 }) {
   const [videoElement, playbackError] = useStreamPlayback(source);
 
@@ -151,7 +154,14 @@ export function VideoSurface({
     return <div role="status" className="grid aspect-video place-items-center rounded-2xl border bg-slate-950 text-white"><p className="flex items-center gap-2 text-sm"><LoaderCircle aria-hidden="true" className="size-5 animate-spin" />ストリームを準備中…</p></div>;
   }
   if (error) {
-    return <Alert role="alert" className="border-destructive/40"><AlertDescription>{error.message}</AlertDescription></Alert>;
+    return (
+      <Alert role="alert" className="border-destructive/40">
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+          <span>{error.message}</span>
+          {onRetry ? <Button type="button" size="sm" variant="outline" onClick={onRetry}><RotateCcw aria-hidden="true" />もう一度試す</Button> : null}
+        </AlertDescription>
+      </Alert>
+    );
   }
   if (!source) {
     return <Alert role="status"><AlertDescription>再生元が指定されていません。</AlertDescription></Alert>;
