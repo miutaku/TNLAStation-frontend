@@ -42,7 +42,7 @@ export interface AppPreferences {
    */
   glassOpacity: number;
   /**
-   * true にすると、上記の透け・ぼかし (backdrop-filter) を完全に無効化し、不透明な面に
+   * true にすると、glassOpacity の透け・ぼかし (backdrop-filter) を完全に無効化し、不透明な面に
    * 固定する。低性能端末での負荷や、すりガラス自体の見た目を好まない場合向け。
    */
   glassDisabled: boolean;
