@@ -5,10 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-/**
- * 再生を始める。ブラウザーは音が出る自動再生を拒む。拒まれたまま黒画面を出すより、
- * 消音で流し始めて、音は本人に戻してもらうほうが分かりやすい。
- */
+
 async function startPlayback(video: HTMLVideoElement): Promise<void> {
   try {
     await video.play();
@@ -17,20 +14,48 @@ async function startPlayback(video: HTMLVideoElement): Promise<void> {
     try {
       await video.play();
     } catch {
-      // 自動再生が全面的に禁じられている。再生ボタンは出ているので、そのまま待つ。
     }
   }
 }
 
+/** MPEG-TS をそのまま流す配信。ブラウザーは再生できないので demux が要る。 */
+function isTransportStream(source: string): boolean {
+  const path = source.split("?")[0];
+  return path.endsWith("/m2ts") || path.endsWith("/m2tsll");
+}
+
 /**
- * HLS を再生する。
- *
- * canPlayType は当てにできない。Chrome は .m3u8 を再生できないのに
- * "application/vnd.apple.mpegurl" へ "maybe" を返すので、これで分岐すると
- * DEMUXER_ERROR_COULD_NOT_PARSE で黒画面になる。MSE が使えるなら hls.js を優先し、
- * ネイティブ再生は MSE を持たないブラウザー (iOS の Safari) の逃げ道として使う。
+ * MPEG-TS を再生する。ブラウザーに TS の demux は無いので mpegts.js が MSE へ橋渡しする。
  */
-function useHlsPlayback(source: string | null): [React.RefObject<HTMLVideoElement | null>, string | null] {
+async function attachTransportStream(
+  video: HTMLVideoElement,
+  source: string,
+  onError: (message: string) => void,
+): Promise<{ destroy: () => void } | null> {
+  const { default: mpegts } = await import("mpegts.js");
+  if (!mpegts.isSupported()) {
+    onError("このブラウザーは低遅延配信の再生に対応していません。");
+    return null;
+  }
+
+  // ライブなので溜め込まない。遅れたら末尾へ追いつかせる。
+  const player = mpegts.createPlayer(
+    { type: "mpegts", isLive: true, url: source },
+    { liveBufferLatencyChasing: true, enableStashBuffer: false },
+  );
+  player.on(mpegts.Events.ERROR, () => onError("配信を再生できませんでした。"));
+  player.attachMediaElement(video);
+  player.load();
+  void startPlayback(video);
+  return {
+    destroy: () => {
+      player.destroy();
+    },
+  };
+}
+
+/** 配信の種別ごとに再生経路を選ぶ。MPEG-TS と HLS は demux が要り、他は video 要素へ直接渡す。 */
+function useStreamPlayback(source: string | null): [React.RefObject<HTMLVideoElement | null>, string | null] {
   const element = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +64,21 @@ function useHlsPlayback(source: string | null): [React.RefObject<HTMLVideoElemen
     if (video === null || source === null) return;
 
     setError(null);
+    if (isTransportStream(source)) {
+      let cancelled = false;
+      let tsPlayer: { destroy: () => void } | null = null;
+      void (async () => {
+        const attached = await attachTransportStream(video, source, setError);
+        if (cancelled) attached?.destroy();
+        else tsPlayer = attached;
+      })();
+
+      return () => {
+        cancelled = true;
+        tsPlayer?.destroy();
+      };
+    }
+
     if (!source.includes(".m3u8")) {
       video.src = source;
       void startPlayback(video);
@@ -94,7 +134,7 @@ export function VideoSurface({
   isLoading?: boolean;
   error?: Error | null;
 }) {
-  const [videoElement, playbackError] = useHlsPlayback(source);
+  const [videoElement, playbackError] = useStreamPlayback(source);
 
   if (isLoading) {
     return <div role="status" className="grid aspect-video place-items-center rounded-2xl border bg-slate-950 text-white"><p className="flex items-center gap-2 text-sm"><LoaderCircle aria-hidden="true" className="size-5 animate-spin" />ストリームを準備中…</p></div>;
