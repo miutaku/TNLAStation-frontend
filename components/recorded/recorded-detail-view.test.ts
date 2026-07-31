@@ -27,14 +27,15 @@ describe("recorded detail layout", () => {
     expect(source).toContain("hidden={!programDetailsOpen}");
   });
 
-  it("places protect and delete actions alongside the page title", () => {
-    const titleActions = source.indexOf("titleActions={recorded");
-    const protect = source.indexOf("保護を解除", titleActions);
-    const remove = source.indexOf(">削除", titleActions);
+  /** 長い番組名でタイトル横から押し出されるため、説明の下へ置いている。 */
+  it("places protect and delete actions under the page title", () => {
+    const subActions = source.indexOf("subActions={recorded");
+    const protect = source.indexOf("保護を解除", subActions);
+    const remove = source.indexOf(">削除", subActions);
     const programDetails = source.indexOf('<CardTitle id="program-details-title">番組詳細');
 
-    expect(titleActions).toBeGreaterThan(-1);
-    expect(protect).toBeGreaterThan(titleActions);
+    expect(subActions).toBeGreaterThan(-1);
+    expect(protect).toBeGreaterThan(subActions);
     expect(remove).toBeGreaterThan(protect);
     expect(programDetails).toBeGreaterThan(remove);
 
@@ -42,12 +43,12 @@ describe("recorded detail layout", () => {
       createElement(PageHeader, {
         title: "非常に長い録画タイトル".repeat(20),
         description: "録画情報",
-        titleActions: createElement("button", null, "保護"),
+        subActions: createElement("button", null, "保護"),
       }),
     );
 
-    expect(header.indexOf("<h1")).toBeLessThan(header.indexOf("<button"));
-    expect(header.indexOf("<button")).toBeLessThan(header.indexOf("<p"));
+    expect(header.indexOf("<h1")).toBeLessThan(header.indexOf("<p"));
+    expect(header.indexOf("<p")).toBeLessThan(header.indexOf("<button"));
     expect(header).toContain("min-w-0");
     expect(header).toContain("max-w-full");
   });
