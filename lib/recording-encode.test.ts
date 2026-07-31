@@ -107,7 +107,7 @@ describe("buildEncodeOnlyReserveUpdate", () => {
 
     const update = buildEncodeOnlyReserveUpdate(item, { mode: "", removeOriginal: false });
 
-    // 出力先だけが残ると上流の検査 (mode1 なしの directory1) で弾かれる。
+    // 出力先だけが残ると EPGStation の検査 (mode1 なしの directory1) で弾かれる。
     expect(update.encodeOption).toMatchObject({ mode1: undefined, directory1: undefined, mode2: "H.265" });
   });
 });

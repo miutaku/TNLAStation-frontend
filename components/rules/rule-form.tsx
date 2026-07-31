@@ -77,7 +77,7 @@ function sameValues(left: unknown, right: unknown): boolean {
 }
 
 /**
- * 編集フォームで扱わない上流互換フィールドも含め、既存ルールを丸ごと基に更新する。
+ * 編集フォームで扱わない EPGStation 互換フィールドも含め、既存ルールを丸ごと基に更新する。
  * サブジャンルや複数時刻などは、対応するフォーム欄を変更した場合だけ置き換える。
  */
 export function buildRuleUpdateOptions(
