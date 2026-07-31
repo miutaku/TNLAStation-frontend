@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CalendarClock, ChevronRight, HardDrive, Radio, RefreshCw, Tv } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronRight, HardDrive, Radio, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useCallback } from "react";
 
@@ -12,6 +12,7 @@ import {
   useCollectionViewMode,
 } from "@/components/collection-view";
 import { PageHeader } from "@/components/page-header";
+import { RecordedThumbnail } from "@/components/recorded/recorded-thumbnail";
 import {
   TableColumnVisibilityMenu,
   type TableColumnVisibilityState,
@@ -60,6 +61,7 @@ const dashboardReserveColumns = [
 type DashboardReserveColumn = (typeof dashboardReserveColumns)[number]["key"];
 
 const dashboardRecordedColumns = [
+  { key: "thumbnail", label: "サムネイル" },
   { key: "program", label: "番組" },
   { key: "recordedAt", label: "録画日時" },
   { key: "size", label: "サイズ" },
@@ -126,8 +128,8 @@ function RecordedPreview({ item }: { item: RecordedItem }) {
   return (
     <li className="border-b py-4 last:border-b-0">
       <div className="flex items-start gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-secondary text-secondary-foreground">
-          <Tv aria-hidden="true" className="size-4" />
+        <span className="grid aspect-[16/9] w-24 shrink-0 place-items-center overflow-hidden rounded-lg bg-secondary text-secondary-foreground">
+          <RecordedThumbnail item={item} iconClassName="size-5" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -255,6 +257,12 @@ function DashboardRecordedTable({
   const renderCell = (key: DashboardRecordedColumn, item: RecordedItem) => {
     const fileSize = item.videoFiles?.reduce((total, file) => total + file.size, 0) ?? 0;
     switch (key) {
+      case "thumbnail":
+        return (
+          <span className="grid aspect-[16/9] w-24 place-items-center overflow-hidden rounded-lg bg-secondary">
+            <RecordedThumbnail item={item} iconClassName="size-5" />
+          </span>
+        );
       case "program":
         return item.name;
       case "recordedAt":
