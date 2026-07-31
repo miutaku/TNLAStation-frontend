@@ -48,6 +48,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="ja" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: noFlashAccentHueScript }} />
+        <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />
       </head>
       <body>
         <ServiceWorkerRegistration />
