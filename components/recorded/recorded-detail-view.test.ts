@@ -47,9 +47,10 @@ describe("recorded detail layout", () => {
       }),
     );
 
+    // 長いタイトルでも操作が押し出されない。順序はタイトル → 説明 → 操作。
     expect(header.indexOf("<h1")).toBeLessThan(header.indexOf("<p"));
     expect(header.indexOf("<p")).toBeLessThan(header.indexOf("<button"));
     expect(header).toContain("min-w-0");
-    expect(header).toContain("max-w-full");
+    expect(header).toContain("flex-wrap");
   });
 });

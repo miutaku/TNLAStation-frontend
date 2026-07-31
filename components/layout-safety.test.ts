@@ -55,3 +55,29 @@ describe("intrinsic width guards", () => {
     expect(markup).toContain("max-w-full");
   });
 });
+
+describe("PageHeader の操作の位置", () => {
+  /** どのページでも同じ位置に出るよう、3 つの枠をまとめて説明の下へ並べる。 */
+  it("puts every kind of action under the title and description", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PageHeader, {
+        title: "録画済み",
+        description: "説明",
+        titleActions: createElement("button", null, "主操作"),
+        subActions: createElement("button", null, "副操作"),
+        actions: createElement("button", null, "戻る"),
+      }),
+    );
+
+    expect(markup.indexOf("<h1")).toBeLessThan(markup.indexOf("<p"));
+    expect(markup.indexOf("<p")).toBeLessThan(markup.indexOf("主操作"));
+    expect(markup.indexOf("主操作")).toBeLessThan(markup.indexOf("副操作"));
+    expect(markup.indexOf("副操作")).toBeLessThan(markup.indexOf("戻る"));
+  });
+
+  it("leaves no empty row when a page has no actions", () => {
+    const markup = renderToStaticMarkup(createElement(PageHeader, { title: "ホーム", description: "説明" }));
+
+    expect(markup).not.toContain("<div");
+  });
+});

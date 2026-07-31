@@ -334,11 +334,11 @@ export function DashboardView() {
     <>
       <PageHeader
         eyebrow="Overview"
-        title="ダッシュボード"
+        title="ホーム"
         description="次の予約と最近の録画をひと目で確認できます。表示内容は TNLAStation のサーバーから取得しています。"
         actions={
           <>
-            <CollectionViewToggle value={viewMode} onChange={setViewMode} label="ダッシュボードの表示形式" />
+            <CollectionViewToggle value={viewMode} onChange={setViewMode} label="ホームの表示形式" />
             <Button type="button" variant="ghost" onClick={resource.revalidate} disabled={resource.isRefreshing}>
               <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
               更新

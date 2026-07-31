@@ -14,7 +14,7 @@ export default function NotFound() {
       <p className="mt-3 text-sm leading-6 text-muted-foreground">URL が変更されたか、ページが削除された可能性があります。</p>
       <Link href="/" className={buttonVariants({ className: "mt-6" })}>
         <ArrowLeft aria-hidden="true" />
-        ダッシュボードへ戻る
+        ホームへ戻る
       </Link>
     </div>
   );

@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
 
+/**
+ * ページの見出し。操作はすべてタイトルと説明の下へ並べる。横に置くと、長い番組名で
+ * 押し出されたり、画面幅によって位置が変わって探すことになる。
+ */
 export function PageHeader({
   title,
   description,
@@ -11,26 +15,28 @@ export function PageHeader({
   eyebrow?: string;
   title: string;
   description: string;
+  /** 主な操作。並びは subActions より先。 */
   titleActions?: ReactNode;
-  /** タイトルと説明の下。操作が多いときはこちらへ置く。 */
   subActions?: ReactNode;
   actions?: ReactNode;
 }) {
+  const hasActions = titleActions !== undefined || subActions !== undefined || actions !== undefined;
+
   return (
-    <header className="mb-8 min-w-0 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0 max-w-3xl flex-1">
-        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
-          <h1 className="min-w-0 flex-1 text-[2rem] leading-[1.1] font-bold tracking-tight text-balance [overflow-wrap:anywhere] sm:text-[2.6rem]">
-            {title}
-          </h1>
-          {titleActions ? <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{titleActions}</div> : null}
+    <header className="mb-8 min-w-0">
+      <h1 className="min-w-0 text-[2rem] leading-[1.1] font-bold tracking-tight text-balance [overflow-wrap:anywhere] sm:text-[2.6rem]">
+        {title}
+      </h1>
+      <p className="mt-2.5 min-w-0 max-w-2xl text-[0.95rem] leading-6 text-muted-foreground [overflow-wrap:anywhere] sm:text-base">
+        {description}
+      </p>
+      {hasActions ? (
+        <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2">
+          {titleActions}
+          {subActions}
+          {actions}
         </div>
-        <p className="mt-2.5 min-w-0 max-w-2xl text-[0.95rem] leading-6 text-muted-foreground [overflow-wrap:anywhere] sm:text-base">
-          {description}
-        </p>
-        {subActions ? <div className="mt-4 flex max-w-full flex-wrap items-center gap-2">{subActions}</div> : null}
-      </div>
-      {actions ? <div className="flex max-w-full flex-wrap items-center gap-2 sm:justify-end">{actions}</div> : null}
+      ) : null}
     </header>
   );
 }
