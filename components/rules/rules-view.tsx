@@ -28,12 +28,12 @@ import {
   type TableColumnVisibilityState,
   useTableColumnVisibility,
 } from "@/components/table-column-visibility";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/toast";
 import { apiClient } from "@/lib/api/client";
 import type { Rule, RuleId, Rules } from "@/lib/api/types";
 import { genreName } from "@/lib/format";
@@ -331,14 +331,15 @@ function RuleTable({
 }
 
 export function RulesView() {
+  const { notify } = useToast();
+  const notifySuccess = useCallback((text: string) => notify("success", text), [notify]);
+  const notifyError = useCallback((text: string) => notify("error", text), [notify]);
   const [draftKeyword, setDraftKeyword] = useState("");
   const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
   const [busyRuleId, setBusyRuleId] = useState<RuleId | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Rule | null>(null);
   const [disableTarget, setDisableTarget] = useState<Rule | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useCollectionViewMode("rules");
   const tableColumns = useTableColumnVisibility("rules", ruleTableColumns);
 
@@ -374,18 +375,18 @@ export function RulesView() {
       return;
     }
     setBusyRuleId(rule.id);
-    setActionError(null);
-    setActionMessage(null);
+    
+    
     try {
       if (rule.reserveOption.enable) await apiClient.disableRule(rule.id);
       else await apiClient.enableRule(rule.id);
       setDisableTarget(null);
-      setActionMessage(
+      notifySuccess(
         `「${ruleTitle(rule)}」を${rule.reserveOption.enable ? "無効" : "有効"}にしました。`,
       );
       resource.reload();
     } catch (reason) {
-      setActionError(reason instanceof Error ? reason.message : "ルールの状態を変更できませんでした。");
+      notifyError(reason instanceof Error ? reason.message : "ルールの状態を変更できませんでした。");
     } finally {
       setBusyRuleId(null);
     }
@@ -395,14 +396,14 @@ export function RulesView() {
     if (!deleteTarget) return;
     const target = deleteTarget;
     setBusyRuleId(target.id);
-    setActionError(null);
+    
     try {
       await apiClient.deleteRule(target.id);
       setDeleteTarget(null);
-      setActionMessage(`「${ruleTitle(target)}」を削除しました。`);
+      notifySuccess(`「${ruleTitle(target)}」を削除しました。`);
       resource.reload();
     } catch (reason) {
-      setActionError(reason instanceof Error ? reason.message : "ルールを削除できませんでした。");
+      notifyError(reason instanceof Error ? reason.message : "ルールを削除できませんでした。");
     } finally {
       setBusyRuleId(null);
     }
@@ -428,17 +429,6 @@ export function RulesView() {
           </>
         )}
       />
-
-      {actionMessage ? (
-        <Alert role="status" className="mb-5 border-emerald-500/35">
-          <AlertDescription>{actionMessage}</AlertDescription>
-        </Alert>
-      ) : null}
-      {actionError ? (
-        <Alert role="alert" className="mb-5 border-destructive/40">
-          <AlertDescription>{actionError}</AlertDescription>
-        </Alert>
-      ) : null}
 
       <form onSubmit={searchRules} role="search" className="mb-5">
         <CollapsibleSearchPanel>

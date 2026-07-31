@@ -1,17 +1,17 @@
 "use client";
 
-import { ArrowLeft, CheckCircle2, Upload } from "lucide-react";
+import { ArrowLeft, Upload } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useState, type FormEvent } from "react";
 
 import { ErrorState } from "@/components/async-state";
 import { PageHeader } from "@/components/page-header";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ValidationSummary } from "@/components/ui/validation-summary";
+import { useToast } from "@/components/ui/toast";
 import { apiClient } from "@/lib/api/client";
 import type { ChannelItem, Config, VideoFileType } from "@/lib/api/types";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
@@ -25,6 +25,9 @@ function localDateTime(timestamp: number): string {
 }
 
 export function RecordedUploadView() {
+  const { notify } = useToast();
+  const notifySuccess = useCallback((text: string) => notify("success", text), [notify]);
+  const notifyError = useCallback((text: string) => notify("error", text), [notify]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [channelId, setChannelId] = useState("");
@@ -37,8 +40,6 @@ export function RecordedUploadView() {
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [validationAttempted, setValidationAttempted] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const loadOptions = useCallback(async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; config: Config }> => {
     const [channels, config] = await Promise.all([apiClient.getChannels(signal), apiClient.getConfig(signal)]);
     return { channels, config };
@@ -58,18 +59,18 @@ export function RecordedUploadView() {
     event.preventDefault();
     setValidationAttempted(true);
     if (validationErrors.length > 0 || !file) {
-      setError(validationErrors[0] ?? "アップロードするファイルを選択してください。");
+      notifyError(validationErrors[0] ?? "アップロードするファイルを選択してください。");
       return;
     }
     const startTimestamp = new Date(startAt).getTime();
     const endTimestamp = new Date(endAt).getTime();
     if (endTimestamp <= startTimestamp) {
-      setError("終了日時は開始日時より後にしてください。");
+      notifyError("終了日時は開始日時より後にしてください。");
       return;
     }
     setSubmitting(true);
-    setError(null);
-    setMessage(null);
+    
+    
     let recordedId: number | null = null;
     try {
       recordedId = await apiClient.createRecorded({
@@ -87,7 +88,7 @@ export function RecordedUploadView() {
         fileType,
         file,
       });
-      setMessage(`録画 #${recordedId} とファイルを登録しました。`);
+      notifySuccess(`録画 #${recordedId} とファイルを登録しました。`);
       setName("");
       setDescription("");
       setViewName("");
@@ -100,7 +101,7 @@ export function RecordedUploadView() {
           // The original error is more useful; an orphan can be removed from the detail screen.
         }
       }
-      setError(reason instanceof Error ? reason.message : "録画ファイルを登録できませんでした。");
+      notifyError(reason instanceof Error ? reason.message : "録画ファイルを登録できませんでした。");
     } finally {
       setSubmitting(false);
     }
@@ -119,8 +120,6 @@ export function RecordedUploadView() {
       {resource.error ? <ErrorState title="登録に必要な情報を取得できませんでした" description={resource.error.message} onRetry={resource.reload} /> : null}
       {resource.data ? (
         <form onSubmit={submit} noValidate className="mx-auto max-w-3xl space-y-5">
-          {message ? <Alert role="status" className="border-emerald-500/35"><AlertDescription className="flex items-center gap-2"><CheckCircle2 aria-hidden="true" className="size-4 text-emerald-600" />{message}</AlertDescription></Alert> : null}
-          {error ? <Alert role="alert" className="border-destructive/40"><AlertDescription>{error}</AlertDescription></Alert> : null}
           <ValidationSummary errors={validationAttempted ? validationErrors : []} />
           <Card className="">
             <CardHeader className="border-b"><CardTitle>番組情報</CardTitle></CardHeader>

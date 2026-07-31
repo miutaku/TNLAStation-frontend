@@ -40,6 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
 import { apiClient } from "@/lib/api/client";
 import type { ChannelItem, Config, RecordedItem, Records, Rule } from "@/lib/api/types";
 import { formatBytes, formatDateTime, formatDuration, genreName } from "@/lib/format";
@@ -269,6 +270,9 @@ function RecordedTable({
 }
 
 export function RecordedView() {
+  const { notify } = useToast();
+  const notifySuccess = useCallback((text: string) => notify("success", text), [notify]);
+  const notifyError = useCallback((text: string) => notify("error", text), [notify]);
   const [draftSearch, setDraftSearch] = useState<ProgramCollectionSearchValue>(
     EMPTY_PROGRAM_COLLECTION_SEARCH,
   );
@@ -294,8 +298,6 @@ export function RecordedView() {
   const [encodeMode, setEncodeMode] = useState("");
   const [encodeRemoveOriginal, setEncodeRemoveOriginal] = useState(false);
   const [confirmCleanup, setConfirmCleanup] = useState(false);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const { preferences } = usePreferences();
   const [viewMode, setViewMode] = useCollectionViewMode("recorded");
   const availableTableColumns = useMemo(
@@ -402,7 +404,7 @@ export function RecordedView() {
   const selectAllPrograms = async () => {
     if (!resource.data || resource.data.total === 0) return;
     setSelectingAll(true);
-    setActionError(null);
+    
     try {
       const all = await apiClient.getRecorded({
         ...searchQuery,
@@ -418,7 +420,7 @@ export function RecordedView() {
       });
       setSelectedIds(new Set(all.records.map((item) => item.id)));
     } catch (reason) {
-      setActionError(reason instanceof Error ? reason.message : "録画一覧を取得できませんでした。");
+      notifyError(reason instanceof Error ? reason.message : "録画一覧を取得できませんでした。");
     } finally {
       setSelectingAll(false);
     }
@@ -436,8 +438,8 @@ export function RecordedView() {
   const deleteSelected = async () => {
     const ids = [...bulkTargetIds];
     setBusy(true);
-    setActionError(null);
-    setActionMessage(null);
+    
+    
     let deleted = 0;
     let deletedFiles = 0;
     const failed: number[] = [];
@@ -468,8 +470,8 @@ export function RecordedView() {
     setConfirmBulk(false);
     exitSelectMode();
     const deletedLabel = bulkDeleteOption === "all" ? `${deleted} 件の録画` : `${deletedFiles} 件の録画ファイル`;
-    if (failed.length > 0) setActionError(`${deletedLabel}を削除しました。${failed.length} 件は削除できませんでした。`);
-    else setActionMessage(`${deletedLabel}を削除しました。`);
+    if (failed.length > 0) notifyError(`${deletedLabel}を削除しました。${failed.length} 件は削除できませんでした。`);
+    else notifySuccess(`${deletedLabel}を削除しました。`);
     resource.reload();
   };
 
@@ -509,8 +511,8 @@ export function RecordedView() {
   const encodeSelected = async () => {
     const targets = encodePlan.targets.filter((target) => encodeTargetIds.has(target.recordedId));
     setBusy(true);
-    setActionError(null);
-    setActionMessage(null);
+    
+    
     let queued = 0;
     const failed: string[] = [];
     for (const target of targets) {
@@ -531,9 +533,9 @@ export function RecordedView() {
     setConfirmEncode(false);
     exitSelectMode();
     if (failed.length > 0) {
-      setActionError(`${queued} 件のエンコードを追加しました。${failed.length} 件は追加できませんでした。`);
+      notifyError(`${queued} 件のエンコードを追加しました。${failed.length} 件は追加できませんでした。`);
     } else {
-      setActionMessage(`${queued} 件のエンコードを追加しました。`);
+      notifySuccess(`${queued} 件のエンコードを追加しました。`);
     }
     resource.reload();
   };
@@ -541,8 +543,8 @@ export function RecordedView() {
   const regenerateThumbnails = async () => {
     const plan = createThumbnailPlan([...selectedIds], [...knownItems.values()]);
     setBusy(true);
-    setActionError(null);
-    setActionMessage(null);
+    
+    
     // 1 件ずつ ffmpeg が走るので、まとめて実行すると数分かかる。どこまで進んだかを出す。
     setThumbnailProgress({ done: 0, total: plan.targets.length });
     let done = 0;
@@ -561,23 +563,23 @@ export function RecordedView() {
     exitSelectMode();
     const skipped = plan.skipped.length + failed.length;
     if (skipped > 0) {
-      setActionError(`${done} 件のサムネイルを作り直しました。${skipped} 件は作り直せませんでした。`);
+      notifyError(`${done} 件のサムネイルを作り直しました。${skipped} 件は作り直せませんでした。`);
     } else {
-      setActionMessage(`${done} 件のサムネイルを作り直しました。`);
+      notifySuccess(`${done} 件のサムネイルを作り直しました。`);
     }
     resource.reload();
   };
 
   const cleanup = async () => {
     setBusy(true);
-    setActionError(null);
-    setActionMessage(null);
+    
+    
     try {
       const removed = await apiClient.cleanupRecorded();
-      setActionMessage(removed > 0 ? `ファイルが見つからない録画 ${removed} 件を一覧から取り除きました。` : "取り除く録画はありませんでした。");
+      notifySuccess(removed > 0 ? `ファイルが見つからない録画 ${removed} 件を一覧から取り除きました。` : "取り除く録画はありませんでした。");
       resource.reload();
     } catch (reason) {
-      setActionError(reason instanceof Error ? reason.message : "録画の整理に失敗しました。");
+      notifyError(reason instanceof Error ? reason.message : "録画の整理に失敗しました。");
     } finally {
       setBusy(false);
       setConfirmCleanup(false);
@@ -614,8 +616,6 @@ export function RecordedView() {
           </AlertDescription>
         </Alert>
       ) : null}
-      {actionMessage ? <Alert role="status" className="mb-5 border-emerald-500/35"><AlertDescription>{actionMessage}</AlertDescription></Alert> : null}
-      {actionError ? <Alert role="alert" className="mb-5 border-destructive/40"><AlertDescription>{actionError}</AlertDescription></Alert> : null}
 
       {selectMode ? (
         <div className="mb-5 flex flex-col gap-3 glass-panel rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between">

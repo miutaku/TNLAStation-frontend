@@ -1,12 +1,11 @@
 "use client";
 
-import { ArrowLeft, CalendarPlus, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, CalendarPlus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useState, type FormEvent } from "react";
 
 import { ErrorState } from "@/components/async-state";
 import { PageHeader } from "@/components/page-header";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -14,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { ValidationSummary } from "@/components/ui/validation-summary";
+import { useToast } from "@/components/ui/toast";
 import { apiClient } from "@/lib/api/client";
 import type { ChannelItem, Config } from "@/lib/api/types";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
@@ -32,6 +32,9 @@ function initialStart(): string {
 }
 
 export function ManualReserveView() {
+  const { notify } = useToast();
+  const notifySuccess = useCallback((text: string) => notify("success", text), [notify]);
+  const notifyError = useCallback((text: string) => notify("error", text), [notify]);
   const [name, setName] = useState("");
   const [channelId, setChannelId] = useState("");
   const [startAt, setStartAt] = useState(initialStart);
@@ -44,8 +47,6 @@ export function ManualReserveView() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmRemoveOriginal, setConfirmRemoveOriginal] = useState(false);
   const [validationAttempted, setValidationAttempted] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const loadOptions = useCallback(async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; config: Config }> => {
     const [channels, config] = await Promise.all([apiClient.getChannels(signal), apiClient.getConfig(signal)]);
     return { channels, config };
@@ -62,13 +63,13 @@ export function ManualReserveView() {
     event?.preventDefault();
     setValidationAttempted(true);
     if (validationErrors.length > 0) {
-      setError(validationErrors[0]);
+      notifyError(validationErrors[0]);
       return;
     }
     const startTimestamp = new Date(startAt).getTime();
     const endTimestamp = new Date(endAt).getTime();
     if (!Number.isFinite(startTimestamp) || !Number.isFinite(endTimestamp) || endTimestamp <= startTimestamp) {
-      setError("終了日時は開始日時より後にしてください。");
+      notifyError("終了日時は開始日時より後にしてください。");
       return;
     }
     if (encodeMode && removeOriginal && !confirmRemoveOriginal) {
@@ -77,8 +78,8 @@ export function ManualReserveView() {
     }
     setConfirmRemoveOriginal(false);
     setSubmitting(true);
-    setError(null);
-    setMessage(null);
+    
+    
     try {
       const reserveId = await apiClient.addManualReserve({
         allowEndLack,
@@ -93,10 +94,10 @@ export function ManualReserveView() {
           },
         } : {}),
       });
-      setMessage(`予約 #${reserveId} を追加しました。`);
+      notifySuccess(`予約 #${reserveId} を追加しました。`);
       setName("");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "予約を追加できませんでした。");
+      notifyError(reason instanceof Error ? reason.message : "予約を追加できませんでした。");
     } finally {
       setSubmitting(false);
     }
@@ -116,8 +117,6 @@ export function ManualReserveView() {
       {!resource.isLoading && resource.data?.channels.length === 0 ? <ErrorState title="予約できるチャンネルがありません" description="チャンネル設定を確認してください。" onRetry={resource.reload} /> : null}
       {resource.data && resource.data.channels.length > 0 ? (
         <form onSubmit={submit} noValidate className="mx-auto max-w-3xl space-y-5">
-          {message ? <Alert role="status" className="border-emerald-500/35"><AlertDescription className="flex items-center gap-2"><CheckCircle2 aria-hidden="true" className="size-4 text-emerald-600" />{message}</AlertDescription></Alert> : null}
-          {error ? <Alert role="alert" className="border-destructive/40"><AlertDescription>{error}</AlertDescription></Alert> : null}
           <ValidationSummary errors={validationAttempted ? validationErrors : []} />
           <Card className="">
             <CardHeader className="border-b"><CardTitle>録画する時間</CardTitle></CardHeader>

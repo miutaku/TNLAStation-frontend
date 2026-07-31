@@ -8,12 +8,12 @@ import { useCallback, useMemo, useState, type FormEvent } from "react";
 import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-state";
 import { PageHeader } from "@/components/page-header";
 import { RecordedTagEditor } from "@/components/recorded/recorded-tags";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/toast";
 import { apiClient } from "@/lib/api/client";
 import type { Config, RecordedItem, VideoFile } from "@/lib/api/types";
 import { formatBytes, formatDateTime, formatDuration, genreName } from "@/lib/format";
@@ -83,11 +83,12 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
   const channelName = useChannelNames();
   const router = useRouter();
   const { preferences } = usePreferences();
+  const { notify } = useToast();
+  const notifySuccess = useCallback((text: string) => notify("success", text), [notify]);
+  const notifyError = useCallback((text: string) => notify("error", text), [notify]);
   const [busy, setBusy] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [deleteVideoFileIds, setDeleteVideoFileIds] = useState<Set<number>>(new Set());
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [sourceVideoFileId, setSourceVideoFileId] = useState("");
   const [encodeMode, setEncodeMode] = useState("");
   const [removeOriginal, setRemoveOriginal] = useState(false);
@@ -120,16 +121,16 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
 
   const runAction = async (operation: () => Promise<void>, success: string, after?: () => void) => {
     setBusy(true);
-    setActionError(null);
-    setActionMessage(null);
+    
+    
     try {
       await operation();
       setConfirmAction(null);
-      setActionMessage(success);
+      notifySuccess(success);
       after?.();
       if (!after) resource.revalidate();
     } catch (reason) {
-      setActionError(reason instanceof Error ? reason.message : "操作を完了できませんでした。");
+      notifyError(reason instanceof Error ? reason.message : "操作を完了できませんでした。");
     } finally {
       setBusy(false);
     }
@@ -151,7 +152,7 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
           mode: encodeMode,
           removeOriginal,
         });
-        setActionMessage(`エンコード #${encodeId} を追加しました。`);
+        notifySuccess(`エンコード #${encodeId} を追加しました。`);
       },
       "エンコードを追加しました。",
     );
@@ -227,8 +228,6 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
       {resource.error ? <ErrorState title="録画詳細を取得できませんでした" description={resource.error.message} onRetry={resource.reload} /> : null}
       {recorded && resource.data ? (
         <div className="space-y-6">
-          {actionMessage ? <Alert role="status" className="border-emerald-500/35"><AlertDescription>{actionMessage}</AlertDescription></Alert> : null}
-          {actionError ? <Alert role="alert" className="border-destructive/40"><AlertDescription>{actionError}</AlertDescription></Alert> : null}
 
           <Card>
             <CardHeader className="border-b">

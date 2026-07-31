@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 
 import { BottomNav } from "@/components/bottom-nav";
 import { isActivePath, navigation } from "@/components/navigation";
+import { ToastProvider } from "@/components/ui/toast";
 import { usePreferences } from "@/lib/hooks/use-preferences";
 import { cn } from "@/lib/utils";
 import { isViewportLockedRoute } from "@/lib/viewport-lock";
@@ -88,7 +89,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <>
+    <ToastProvider>
       <a
         href="#main-content"
         className="fixed top-2 left-2 z-[100] -translate-y-20 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground focus:translate-y-0"
@@ -126,6 +127,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       <BottomNav />
-    </>
+    </ToastProvider>
   );
 }

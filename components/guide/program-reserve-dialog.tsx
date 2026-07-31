@@ -2,13 +2,13 @@
 
 import { CalendarPlus, CalendarX, Search } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState , useCallback} from "react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { ReserveEncodeOptions } from "@/components/reserves/reserve-encode-options";
+import { useToast } from "@/components/ui/toast";
 import { apiClient } from "@/lib/api/client";
 import type { Config, ReserveId, ScheduleProgramItem } from "@/lib/api/types";
 import { formatDateTime, formatDuration, genreName } from "@/lib/format";
@@ -38,9 +38,10 @@ export function ProgramReserveDialog({
   onClose: () => void;
   onReserved?: () => void;
 }) {
+  const { notify } = useToast();
+  const notifySuccess = useCallback((text: string) => notify("success", text), [notify]);
+  const notifyError = useCallback((text: string) => notify("error", text), [notify]);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [encodeMode, setEncodeMode] = useState("");
   const [removeOriginal, setRemoveOriginal] = useState(false);
   const [reserved, setReserved] = useState(reserveId !== undefined);
@@ -49,8 +50,8 @@ export function ProgramReserveDialog({
   const [lastId, setLastId] = useState(program?.id);
   if (program?.id !== lastId) {
     setLastId(program?.id);
-    setMessage(null);
-    setError(null);
+    
+    
     setBusy(false);
     setEncodeMode("");
     setRemoveOriginal(false);
@@ -61,8 +62,8 @@ export function ProgramReserveDialog({
 
   const reserve = async () => {
     setBusy(true);
-    setError(null);
-    setMessage(null);
+    
+    
     try {
       const addedId = await apiClient.addManualReserve({
         programId: program.id,
@@ -74,13 +75,13 @@ export function ProgramReserveDialog({
           },
         } : {}),
       });
-      setMessage(`予約 #${addedId} を追加しました。`);
+      notifySuccess(`予約 #${addedId} を追加しました。`);
       setReserved(true);
       onReserved?.();
     } catch (reason) {
       // すでに予約されていたなら、押せる状態のままにしない。表示を予約済みへ倒す。
       if (isApiFailure(reason, RESERVATION_ALREADY_EXISTS)) setReserved(true);
-      setError(describeReserveFailure(reason).message);
+      notifyError(describeReserveFailure(reason).message);
     } finally {
       setBusy(false);
     }
@@ -89,15 +90,15 @@ export function ProgramReserveDialog({
   const cancel = async () => {
     if (reserveId === undefined) return;
     setBusy(true);
-    setError(null);
-    setMessage(null);
+    
+    
     try {
       await apiClient.deleteReserve(reserveId);
-      setMessage("録画予約を解除しました。");
+      notifySuccess("録画予約を解除しました。");
       setReserved(false);
       onReserved?.();
     } catch (reason) {
-      setError(describeReserveFailure(reason).message);
+      notifyError(describeReserveFailure(reason).message);
     } finally {
       setBusy(false);
     }
@@ -152,9 +153,6 @@ export function ProgramReserveDialog({
           onRemoveOriginalChange={setRemoveOriginal}
         />
       </div>
-
-      {message ? <Alert role="status" className="mt-5 border-emerald-500/35"><AlertDescription>{message}</AlertDescription></Alert> : null}
-      {error ? <Alert role="alert" className="mt-5 border-destructive/40"><AlertDescription>{error}</AlertDescription></Alert> : null}
     </Dialog>
   );
 }

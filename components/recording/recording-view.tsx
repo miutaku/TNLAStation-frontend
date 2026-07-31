@@ -18,7 +18,6 @@ import {
   type TableColumnVisibilityState,
   useTableColumnVisibility,
 } from "@/components/table-column-visibility";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
 import { apiClient } from "@/lib/api/client";
 import type { Config, RecordedItem, Records, ReserveItem } from "@/lib/api/types";
 import { calculateElapsedPercentage, formatBytes, formatDateTime, formatDuration, formatTime } from "@/lib/format";
@@ -257,6 +257,9 @@ function RecordingTable({
 }
 
 export function RecordingView() {
+  const { notify } = useToast();
+  const notifySuccess = useCallback((text: string) => notify("success", text), [notify]);
+  const notifyError = useCallback((text: string) => notify("error", text), [notify]);
   const [page, setPage] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
   const { preferences } = usePreferences();
@@ -264,8 +267,6 @@ export function RecordingView() {
   const tableColumns = useTableColumnVisibility("recording", recordingTableColumns);
   const [stopTarget, setStopTarget] = useState<RecordedItem | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [encodeTarget, setEncodeTarget] = useState<RecordedItem | null>(null);
   const [encodeMode, setEncodeMode] = useState("");
   const [encodeRemoveOriginal, setEncodeRemoveOriginal] = useState(false);
@@ -332,8 +333,8 @@ export function RecordingView() {
     if (!encodeTarget) return;
 
     setSavingEncode(true);
-    setActionMessage(null);
-    setActionError(null);
+    
+    
     try {
       const resolved = resolveReserveEncodeUpdate(
         encodeTarget,
@@ -345,14 +346,14 @@ export function RecordingView() {
 
       await apiClient.updateReserve(resolved.reserveId, resolved.update);
       setEncodeTarget(null);
-      setActionMessage(
+      notifySuccess(
         encodeMode
           ? `「${encodeTarget.name}」の録画後のエンコードを ${encodeMode} にしました。録画は続いています。`
           : `「${encodeTarget.name}」の録画後のエンコードを取り消しました。録画は続いています。`,
       );
       encodeSettings.reload();
     } catch (reason) {
-      setActionError(reason instanceof Error ? reason.message : "エンコード設定を変更できませんでした。");
+      notifyError(reason instanceof Error ? reason.message : "エンコード設定を変更できませんでした。");
     } finally {
       setSavingEncode(false);
     }
@@ -362,15 +363,15 @@ export function RecordingView() {
     if (!stopTarget) return;
     const target = stopTarget;
     setBusyId(target.id);
-    setActionMessage(null);
-    setActionError(null);
+    
+    
     try {
       await apiClient.stopRecording(target.id);
       setStopTarget(null);
-      setActionMessage(`「${target.name}」の録画を停止し、録画予約をキャンセルしました。途中までの録画は録画済みに残ります。`);
+      notifySuccess(`「${target.name}」の録画を停止し、録画予約をキャンセルしました。途中までの録画は録画済みに残ります。`);
       resource.reload();
     } catch (reason) {
-      setActionError(reason instanceof Error ? reason.message : "録画を停止できませんでした。");
+      notifyError(reason instanceof Error ? reason.message : "録画を停止できませんでした。");
     } finally {
       setBusyId(null);
     }
@@ -392,9 +393,6 @@ export function RecordingView() {
           </>
         }
       />
-
-      {actionMessage ? <Alert role="status" className="mb-5 border-emerald-500/35"><AlertDescription>{actionMessage}</AlertDescription></Alert> : null}
-      {actionError ? <Alert role="alert" className="mb-5 border-destructive/40"><AlertDescription>{actionError}</AlertDescription></Alert> : null}
 
       {resource.isLoading ? <ContentSkeleton cards={4} /> : null}
       {resource.error ? <ErrorState title="録画状況を取得できませんでした" description={resource.error.message} onRetry={resource.reload} /> : null}
