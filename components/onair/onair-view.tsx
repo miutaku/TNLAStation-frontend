@@ -57,6 +57,7 @@ function isAudioVideoService(serviceType?: number): boolean {
   return serviceType === undefined || [0x01, 0x02, 0xa1, 0xa2, 0xa5, 0xa6, 0xad].includes(serviceType);
 }
 
+/** ライブ視聴の全経路。IPTV や外部 client からの無変換視聴も LiveStream として載る。 */
 function isLiveStream(stream: LiveStreamInfoItem): boolean {
   return stream.type === "LiveStream" || stream.type === "LiveHLS";
 }
@@ -192,7 +193,7 @@ export function OnAirChannelGroupCard({
             <div className="flex flex-wrap justify-end gap-2">
               {selectableChannels.length > 1 ? <Badge variant="outline">{selectableChannels.length} 放送中サービス</Badge> : null}
               {program && recordingIds.has(program.id) ? <Badge variant="destructive"><Circle aria-hidden="true" className="fill-current" />録画中</Badge> : null}
-              {stream ? <Badge variant="success"><Activity aria-hidden="true" />視聴中</Badge> : null}
+              {stream ? <Badge variant="success" title={stream.client}><Activity aria-hidden="true" />視聴中</Badge> : null}
             </div>
           </div>
 
@@ -347,7 +348,13 @@ export function OnAirChannelGroupRow({
           </>
         ) : "—";
       case "stream":
-        return stream ? <Badge variant="success"><Activity aria-hidden="true" />視聴中</Badge> : <Badge variant="outline">待機</Badge>;
+        return stream ? (
+          <span className="flex flex-col items-start gap-1">
+            <Badge variant="success"><Activity aria-hidden="true" />視聴中</Badge>
+            {/* 誰が掴んでいるのか分からないと、止めていいか判断できない。 */}
+            {stream.client ? <span className="max-w-52 truncate text-xs text-muted-foreground" title={stream.client}>{stream.client}</span> : null}
+          </span>
+        ) : <Badge variant="outline">待機</Badge>;
       case "actions":
         return (
           <div className="flex justify-end gap-2">

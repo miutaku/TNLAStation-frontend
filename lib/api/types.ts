@@ -468,6 +468,8 @@ export interface LiveStreamInfoItem {
   description?: string;
   extended?: string;
   rawExtended?: RawExtended;
+  /** 接続元。EPGStation に無い TNLAStation の追加 (docs/compatibility.md)。 */
+  client?: string;
 }
 
 export interface VideoFileStreamInfoItem extends LiveStreamInfoItem {
