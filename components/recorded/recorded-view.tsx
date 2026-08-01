@@ -632,6 +632,7 @@ export function RecordedView() {
         value={draftSearch}
         channels={pageOptions.data?.channels ?? []}
         rules={pageOptions.data?.rules ?? []}
+        broadcast={pageOptions.data?.config.broadcast}
         methodLabel="録画方法"
         manualLabel="手動録画"
         onChange={setDraftSearch}

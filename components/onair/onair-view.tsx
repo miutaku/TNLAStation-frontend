@@ -35,6 +35,7 @@ import { apiClient } from "@/lib/api/client";
 import type { ChannelItem, ChannelType, Config, LiveStreamInfoItem, Records, Reserves, Schedule, ScheduleProgramItem, StreamInfo } from "@/lib/api/types";
 import { calculateElapsedPercentage, formatDuration, formatTime } from "@/lib/format";
 import { describeMissingProgram, findCurrentProgram, nextScheduleRefreshAt } from "@/lib/onair-schedule";
+import { availableBroadcastTypes, BROADCAST_TYPE_LABELS } from "@/lib/broadcast-types";
 import { recordingProgramIds, reserveIdByProgram } from "@/lib/program-marks";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { useRevalidateOnFocus } from "@/lib/hooks/use-revalidate-on-focus";
@@ -433,6 +434,25 @@ export function OnAirView() {
     [resource.data?.streams.items],
   );
   const streamsByChannel = useMemo(() => new Map(liveStreams.map((stream) => [stream.channelId, stream])), [liveStreams]);
+  // 受信できる放送波だけ出す。使えない選択肢を並べても押せば空になるだけ。
+  const availableTypes = useMemo(
+    () => availableBroadcastTypes(resource.data?.config.broadcast),
+    [resource.data?.config.broadcast],
+  );
+  const broadcastFilters = useMemo<BroadcastFilter[]>(
+    () => (availableTypes.length > 1 ? ["ALL", ...availableTypes] : [...availableTypes]),
+    [availableTypes],
+  );
+
+  // 選択中の放送波が使えなくなったら、使えるほうへ寄せる。押しても空になるだけの状態を残さない。
+  const [lastBroadcastStatus, setLastBroadcastStatus] = useState(resource.data?.config.broadcast);
+  if (resource.data && resource.data.config.broadcast !== lastBroadcastStatus) {
+    setLastBroadcastStatus(resource.data.config.broadcast);
+    if (broadcast !== "ALL" && !availableTypes.includes(broadcast)) {
+      setBroadcast(broadcastFilters[0] ?? "ALL");
+    }
+  }
+
   const recordingIds = useMemo(
     () => recordingProgramIds(resource.data?.recording.records ?? []),
     [resource.data?.recording.records],
@@ -475,7 +495,7 @@ export function OnAirView() {
         <fieldset>
           <legend className="sr-only">放送波で絞り込む</legend>
           <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-muted p-1">
-            {(["ALL", "GR", "BS", "CS", "SKY"] as const).map((type) => (
+            {broadcastFilters.map((type) => (
               <Button
                 key={type}
                 type="button"
@@ -484,7 +504,7 @@ export function OnAirView() {
                 aria-pressed={broadcast === type}
                 onClick={() => setBroadcast(type)}
               >
-                {type === "ALL" ? "すべて" : type}
+                {type === "ALL" ? "すべて" : BROADCAST_TYPE_LABELS[type]}
               </Button>
             ))}
           </div>

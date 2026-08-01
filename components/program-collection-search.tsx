@@ -1,12 +1,13 @@
 "use client";
 
 import { RotateCcw, Search } from "lucide-react";
-import type { FormEvent, ReactNode } from "react";
+import { useMemo, type FormEvent, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CollapsibleSearchPanel } from "@/components/collapsible-search-panel";
-import type { ChannelItem, Rule } from "@/lib/api/types";
+import { availableBroadcastTypes } from "@/lib/broadcast-types";
+import type { ChannelItem, Rule, BroadcastStatus } from "@/lib/api/types";
 import { GENRE_ENTRIES } from "@/lib/format";
 
 const selectClassName =
@@ -61,6 +62,7 @@ export function ProgramCollectionSearch({
   value,
   channels,
   rules,
+  broadcast,
   methodLabel = "予約方法",
   manualLabel,
   onChange,
@@ -72,6 +74,8 @@ export function ProgramCollectionSearch({
   value: ProgramCollectionSearchValue;
   channels: readonly ChannelItem[];
   rules: readonly Rule[];
+  /** 受信できる放送波。未指定なら全種別の放送局を出す。 */
+  broadcast?: BroadcastStatus;
   methodLabel?: string;
   manualLabel: string;
   onChange: (value: ProgramCollectionSearchValue) => void;
@@ -79,6 +83,13 @@ export function ProgramCollectionSearch({
   onClear: () => void;
   children?: ReactNode;
 }) {
+  // 受信できない放送波の放送局を並べても、選べば結果は空になるだけ。
+  const usableTypes = useMemo(() => new Set(availableBroadcastTypes(broadcast)), [broadcast]);
+  const listedChannels = useMemo(
+    () => channels.filter((channel) => usableTypes.has(channel.channelType)),
+    [channels, usableTypes],
+  );
+
   const update = (field: keyof ProgramCollectionSearchValue, next: string) => {
     onChange({ ...value, [field]: next });
   };
@@ -137,7 +148,7 @@ export function ProgramCollectionSearch({
             onChange={(event) => update("channelId", event.target.value)}
           >
             <option value="">すべて</option>
-            {channels.map((channel) => (
+            {listedChannels.map((channel) => (
               <option key={channel.id} value={channel.id}>
                 {channel.name} ({channel.channelType})
               </option>

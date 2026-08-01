@@ -4,16 +4,10 @@ import { X } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import type { ChannelItem, ChannelType, RuleSearchOptions } from "@/lib/api/types";
+import type { ChannelItem, ChannelType, RuleSearchOptions, BroadcastStatus } from "@/lib/api/types";
+import { availableBroadcastTypes, BROADCAST_TYPE_LABELS } from "@/lib/broadcast-types";
 import { GENRE_ENTRIES } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-const BROADCASTS: { value: ChannelType; label: string }[] = [
-  { value: "GR", label: "地デジ" },
-  { value: "BS", label: "BS" },
-  { value: "CS", label: "CS" },
-  { value: "SKY", label: "SKY" },
-];
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
@@ -205,11 +199,15 @@ export function SearchConditionsForm({
   conditions,
   onChange,
   channels,
+  broadcast,
 }: {
   conditions: SearchConditions;
   onChange: (next: SearchConditions) => void;
   channels: ChannelItem[];
+  /** 受信できる放送波。未指定なら全種別を出す。 */
+  broadcast?: BroadcastStatus;
 }) {
+  const broadcasts = availableBroadcastTypes(broadcast);
   const patch = (part: Partial<SearchConditions>) => onChange({ ...conditions, ...part });
 
   const toggleChannel = (id: number) =>
@@ -279,15 +277,13 @@ export function SearchConditionsForm({
       <fieldset>
         <legend className="text-sm font-semibold">放送波</legend>
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {BROADCASTS.map((option) => (
+          {broadcasts.map((type) => (
             <Chip
-              key={option.value}
-              active={conditions.broadcasts[option.value]}
-              onClick={() =>
-                patch({ broadcasts: { ...conditions.broadcasts, [option.value]: !conditions.broadcasts[option.value] } })
-              }
+              key={type}
+              active={conditions.broadcasts[type]}
+              onClick={() => patch({ broadcasts: { ...conditions.broadcasts, [type]: !conditions.broadcasts[type] } })}
             >
-              {option.label}
+              {BROADCAST_TYPE_LABELS[type]}
             </Chip>
           ))}
         </div>

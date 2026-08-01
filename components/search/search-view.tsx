@@ -41,7 +41,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiClient } from "@/lib/api/client";
-import type { ChannelItem, ScheduleProgramItem, ScheduleSearchOptions } from "@/lib/api/types";
+import type { ChannelItem, ScheduleProgramItem, ScheduleSearchOptions, BroadcastStatus } from "@/lib/api/types";
 import { formatDateTime, formatDuration, genreName } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { useChannelNames } from "@/lib/hooks/use-channel-names";
@@ -156,11 +156,20 @@ export function SearchView() {
   const [viewMode, setViewMode] = useCollectionViewMode("search-results");
   const tableColumns = useTableColumnVisibility("search-results", searchResultTableColumns);
 
+  const [broadcast, setBroadcast] = useState<BroadcastStatus | undefined>(undefined);
+
   useEffect(() => {
     let cancelled = false;
     void apiClient.getChannels().then(
       (list) => {
         if (!cancelled) setChannels(list);
+      },
+      () => undefined,
+    );
+    // 受信できる放送波を知るためだけに読む。取れなければ全種別を出す。
+    void apiClient.getConfig().then(
+      (config) => {
+        if (!cancelled) setBroadcast(config.broadcast);
       },
       () => undefined,
     );
@@ -217,7 +226,7 @@ export function SearchView() {
 
       <form onSubmit={submit} role="search" className="mb-6">
         <CollapsibleSearchPanel>
-        <SearchConditionsForm conditions={conditions} onChange={setConditions} channels={channels} />
+        <SearchConditionsForm conditions={conditions} onChange={setConditions} channels={channels} broadcast={broadcast} />
         <div className="mt-5"><ValidationSummary errors={validationErrors} /></div>
 
         <div className="mt-6 flex flex-col-reverse gap-2 border-t pt-5 sm:flex-row sm:justify-end">

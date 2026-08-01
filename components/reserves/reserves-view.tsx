@@ -39,7 +39,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiClient } from "@/lib/api/client";
-import type { ChannelItem, GetReserveType, ReserveItem, Reserves, Rule } from "@/lib/api/types";
+import type { ChannelItem, GetReserveType, ReserveItem, Reserves, Rule, Config } from "@/lib/api/types";
 import { formatDateTime, formatDuration, genreName } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { useChannelNames } from "@/lib/hooks/use-channel-names";
@@ -266,12 +266,13 @@ export function ReservesView() {
   const tableColumns = useTableColumnVisibility("reserves", reserveTableColumns);
   const searchQuery = useMemo(() => toProgramCollectionQuery(search), [search]);
   const loadSearchOptions = useCallback(
-    async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; rules: Rule[] }> => {
-      const [channels, rules] = await Promise.all([
+    async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; rules: Rule[]; config: Config }> => {
+      const [channels, rules, config] = await Promise.all([
         apiClient.getChannels(signal),
         apiClient.getRules({ offset: 0, limit: 1_000 }, signal),
+        apiClient.getConfig(signal),
       ]);
-      return { channels, rules: rules.rules };
+      return { channels, rules: rules.rules, config };
     },
     [],
   );
@@ -345,6 +346,7 @@ export function ReservesView() {
         value={draftSearch}
         channels={searchOptions.data?.channels ?? []}
         rules={searchOptions.data?.rules ?? []}
+        broadcast={searchOptions.data?.config.broadcast}
         manualLabel="手動予約"
         onChange={setDraftSearch}
         onSubmit={submitSearch}
