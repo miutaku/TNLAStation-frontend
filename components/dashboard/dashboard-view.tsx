@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, CalendarClock, ChevronRight, HardDrive, Radio, RefreshCw } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronRight, Cpu, Film, HardDrive, ListChecks, Radio, RefreshCw, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback } from "react";
 
@@ -31,18 +31,48 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiClient } from "@/lib/api/client";
-import type { Config, RecordedItem, ReserveItem } from "@/lib/api/types";
+import type { Config, RecordedItem, ReserveItem, StorageItem } from "@/lib/api/types";
 import { formatBytes, formatDateTime, formatDuration } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { useChannelNames } from "@/lib/hooks/use-channel-names";
 import { usePreferences } from "@/lib/hooks/use-preferences";
 
-interface DashboardData {
+export interface DashboardData {
   config: Config;
   reserves: ReserveItem[];
   reserveTotal: number;
   recorded: RecordedItem[];
   recordedTotal: number;
+  recordingTotal: number;
+  ruleTotal: number;
+  encodeTotal: number;
+  storage?: StorageItem;
+}
+
+interface DashboardMetric {
+  label: string;
+  value: number | string;
+  helper: string;
+  icon: LucideIcon;
+  emphasis?: boolean;
+}
+
+/** 概要に出す値。表示形式が変わっても中身は 1 か所で決める。 */
+export function dashboardMetrics(data: DashboardData, conflictCount: number): DashboardMetric[] {
+  return [
+    { label: "予約", value: data.reserveTotal, helper: "取得できる予約の総数", icon: CalendarClock },
+    { label: "競合", value: conflictCount, helper: "現在の取得範囲内で競合している予約", icon: AlertTriangle, emphasis: conflictCount > 0 },
+    { label: "録画中", value: data.recordingTotal, helper: "いま録画している番組", icon: Radio, emphasis: data.recordingTotal > 0 },
+    { label: "録画ルール", value: data.ruleTotal, helper: "登録しているルールの数", icon: ListChecks },
+    { label: "エンコード", value: data.encodeTotal, helper: "実行中と待機中の合計", icon: Cpu, emphasis: data.encodeTotal > 0 },
+    { label: "録画済み", value: data.recordedTotal, helper: "録画ライブラリの総番組数", icon: Film },
+    {
+      label: "空き容量",
+      value: data.storage ? formatBytes(data.storage.available) : "—",
+      helper: data.storage ? `${data.storage.name} の残り` : "保存先の情報を取得できていません",
+      icon: HardDrive,
+    },
+  ];
 }
 
 const dashboardSummaryColumns = [
@@ -146,24 +176,13 @@ function RecordedPreview({ item }: { item: RecordedItem }) {
 }
 
 function DashboardSummaryTable({
-  reserveTotal,
-  conflictCount,
-  recordedTotal,
-  broadcasts,
+  metrics,
   columns,
 }: {
-  reserveTotal: number;
-  conflictCount: number;
-  recordedTotal: number;
-  broadcasts: string;
+  metrics: DashboardMetric[];
   columns: TableColumnVisibilityState<DashboardSummaryColumn>;
 }) {
-  const rows = [
-    { label: "予約", value: reserveTotal, helper: "取得できる予約の総数" },
-    { label: "競合", value: conflictCount, helper: "現在の取得範囲内で競合している予約" },
-    { label: "録画済み", value: recordedTotal, helper: "録画ライブラリの総番組数" },
-    { label: "放送波", value: broadcasts || "—", helper: "受信できる放送波" },
-  ];
+  const rows = metrics;
   const visibleColumns = columns.columns.filter((column) => columns.isVisible(column.key));
   const cellClassName: Record<DashboardSummaryColumn, string> = {
     item: "font-semibold",
@@ -307,10 +326,14 @@ export function DashboardView() {
   const reserveTableColumns = useTableColumnVisibility("dashboard-reserves", dashboardReserveColumns);
   const recordedTableColumns = useTableColumnVisibility("dashboard-recorded", dashboardRecordedColumns);
   const loadDashboard = useCallback(async (signal: AbortSignal): Promise<DashboardData> => {
-    const [config, reserves, recorded] = await Promise.all([
+    const [config, reserves, recorded, recording, rules, encode, storages] = await Promise.all([
       apiClient.getConfig(signal),
       apiClient.getReserves({ type: "all", isHalfWidth: preferences.isHalfWidthDisplayed, offset: 0, limit: 24 }, signal),
       apiClient.getRecorded({ isHalfWidth: preferences.isHalfWidthDisplayed, offset: 0, limit: 12 }, signal),
+      apiClient.getRecording({ isHalfWidth: preferences.isHalfWidthDisplayed, offset: 0, limit: 1 }, signal),
+      apiClient.getRules({ offset: 0, limit: 1 }, signal),
+      apiClient.getEncode(preferences.isHalfWidthDisplayed, signal),
+      apiClient.getStorages(signal),
     ]);
     return {
       config,
@@ -318,17 +341,16 @@ export function DashboardView() {
       reserveTotal: reserves.total,
       recorded: recorded.records,
       recordedTotal: recorded.total,
+      recordingTotal: recording.total,
+      ruleTotal: rules.total,
+      encodeTotal: encode.runningItems.length + encode.waitItems.length,
+      storage: storages.items[0],
     };
   }, [preferences.isHalfWidthDisplayed]);
   const resource = useApiResource(loadDashboard);
 
   const conflictCount = resource.data?.reserves.filter((reserve) => reserve.isConflict).length ?? 0;
-  const enabledBroadcasts = resource.data
-    ? Object.entries(resource.data.config.broadcast)
-        .filter(([, enabled]) => enabled)
-        .map(([type]) => type)
-        .join(" / ")
-    : "";
+  const metrics = resource.data ? dashboardMetrics(resource.data, conflictCount) : [];
 
   return (
     <>
@@ -357,13 +379,7 @@ export function DashboardView() {
               <div className="mb-3 flex justify-end">
                 <TableColumnVisibilityMenu state={summaryTableColumns} label="システム概要の列" />
               </div>
-              <DashboardSummaryTable
-                reserveTotal={resource.data.reserveTotal}
-                conflictCount={conflictCount}
-                recordedTotal={resource.data.recordedTotal}
-                broadcasts={enabledBroadcasts}
-                columns={summaryTableColumns}
-              />
+              <DashboardSummaryTable metrics={metrics} columns={summaryTableColumns} />
               <section aria-labelledby="dashboard-reserves-title">
                 <div className="mb-3 flex items-center justify-between gap-4">
                   <div><h2 id="dashboard-reserves-title" className="text-lg font-bold">予約スケジュール</h2><p className="text-xs text-muted-foreground">開始時刻が近い予約を表示</p></div>
@@ -388,17 +404,17 @@ export function DashboardView() {
           ) : (
             <>
               <section aria-label="システム概要" className={collectionLayoutClass(viewMode, "sm:grid-cols-2 xl:grid-cols-4")}>
-                <MetricCard label="予約" value={resource.data.reserveTotal} helper="取得できる予約の総数" icon={CalendarClock} viewMode={viewMode} />
-                <MetricCard
-                  label="競合"
-                  value={conflictCount}
-                  helper="現在の取得範囲内で競合している予約"
-                  icon={AlertTriangle}
-                  emphasis={conflictCount > 0}
-                  viewMode={viewMode}
-                />
-                <MetricCard label="録画済み" value={resource.data.recordedTotal} helper="録画ライブラリの総番組数" icon={HardDrive} viewMode={viewMode} />
-                <MetricCard label="放送波" value={enabledBroadcasts || "—"} helper="受信できる放送波" icon={Radio} viewMode={viewMode} />
+                {metrics.map((metric) => (
+                  <MetricCard
+                    key={metric.label}
+                    label={metric.label}
+                    value={metric.value}
+                    helper={metric.helper}
+                    icon={metric.icon}
+                    emphasis={metric.emphasis}
+                    viewMode={viewMode}
+                  />
+                ))}
               </section>
 
               <section className={collectionLayoutClass(viewMode, "xl:grid-cols-2")} aria-label="最近の状況">
