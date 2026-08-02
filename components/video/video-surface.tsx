@@ -88,6 +88,7 @@ function useStreamPlayback(source: string | null): [React.RefObject<HTMLVideoEle
 
     let cancelled = false;
     let player: { destroy: () => void } | null = null;
+    let restartTimer: number | null = null;
     void (async () => {
       const { default: Hls } = await import("hls.js");
       if (cancelled) return;
@@ -115,11 +116,35 @@ function useStreamPlayback(source: string | null): [React.RefObject<HTMLVideoEle
         },
       });
       player = hls;
+      // fatal なネットワークエラーの再開は回数を区切る。無条件に startLoad し続けると、
+      // 認証切れやバックエンド側の抹消でも黙って失敗リクエストを永遠に打ち続ける。
+      const MAX_NETWORK_RESTARTS = 8;
+      let networkRestarts = 0;
+      hls.on(Hls.Events.FRAG_LOADED, () => {
+        networkRestarts = 0;
+      });
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return;
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
-        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-        else setError("配信を再生できませんでした。");
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          if (networkRestarts >= MAX_NETWORK_RESTARTS) {
+            setError("配信サーバーへ接続できません。ページを再読み込みしてください。");
+            hls.stopLoad();
+            return;
+          }
+          networkRestarts += 1;
+          restartTimer = window.setTimeout(
+            () => {
+              if (!cancelled) hls.startLoad();
+            },
+            Math.min(1_000 * 2 ** networkRestarts, 15_000),
+          );
+          return;
+        }
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls.recoverMediaError();
+          return;
+        }
+        setError("配信を再生できませんでした。");
       });
       hls.on(Hls.Events.MANIFEST_PARSED, () => void startPlayback(video));
       hls.loadSource(source);
@@ -128,6 +153,7 @@ function useStreamPlayback(source: string | null): [React.RefObject<HTMLVideoEle
 
     return () => {
       cancelled = true;
+      if (restartTimer !== null) window.clearTimeout(restartTimer);
       player?.destroy();
     };
   }, [source]);
