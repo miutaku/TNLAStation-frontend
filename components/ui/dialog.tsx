@@ -76,7 +76,11 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="glass-panel relative flex min-w-0 max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col rounded-2xl [overflow-wrap:anywhere]"
+        // Note: 下端はモバイルの BottomNav (h-[4.5rem] + bottom オフセット) と
+        // 重ならない位置を目安に止める。100vh はモバイルでアドレスバーの出入りにより
+        // 実際に見えている高さとずれるため、app-shell.tsx が書き込む visualViewport
+        // 由来の --app-viewport-height を優先する。
+        className="glass-panel relative flex min-w-0 max-h-[calc(var(--app-viewport-height,100dvh)-env(safe-area-inset-bottom)-6.25rem)] w-full max-w-lg flex-col rounded-2xl [overflow-wrap:anywhere] lg:max-h-[calc(var(--app-viewport-height,100vh)-2rem)]"
       >
         <div className="flex items-start justify-between gap-4 border-b p-5 sm:p-6">
           <h2 id={titleId} className="min-w-0 text-lg font-bold leading-7 [overflow-wrap:anywhere]">{title}</h2>
@@ -85,7 +89,7 @@ export function Dialog({
           </button>
         </div>
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5 sm:p-6">{children}</div>
-        {footer ? <div className="flex flex-col-reverse gap-2 border-t p-5 sm:flex-row sm:justify-end sm:p-6">{footer}</div> : null}
+        {footer ? <div className="flex flex-col-reverse gap-2 border-t p-5 landscape:flex-row sm:flex-row sm:justify-end sm:p-6">{footer}</div> : null}
       </div>
     </div>,
     document.body,

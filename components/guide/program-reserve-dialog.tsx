@@ -112,20 +112,32 @@ export function ProgramReserveDialog({
       title={program.name}
       onClose={onClose}
       footer={
-        <>
-          <Button asChild variant="ghost" onClick={onClose}>
-            <Link href={searchHref}><Search aria-hidden="true" />この番組を検索</Link>
-          </Button>
-          {reserved ? (
-            <Button type="button" variant="destructive" disabled={busy || reserveId === undefined} onClick={() => void cancel()}>
-              <CalendarX aria-hidden="true" />{busy ? "解除中…" : "録画予約を解除"}
+        <div className="flex w-full flex-col gap-3">
+          <div className="flex flex-col-reverse gap-2 landscape:flex-row sm:flex-row sm:justify-end">
+            <Button asChild variant="ghost" onClick={onClose}>
+              <Link href={searchHref}><Search aria-hidden="true" />この番組を検索</Link>
             </Button>
-          ) : (
-            <Button type="button" disabled={busy} onClick={() => void reserve()}>
-              <CalendarPlus aria-hidden="true" />{busy ? "予約中…" : "録画予約する"}
-            </Button>
-          )}
-        </>
+            {reserved ? (
+              <Button type="button" variant="destructive" disabled={busy || reserveId === undefined} onClick={() => void cancel()}>
+                <CalendarX aria-hidden="true" />{busy ? "解除中…" : "録画予約を解除"}
+              </Button>
+            ) : (
+              <Button type="button" disabled={busy} onClick={() => void reserve()}>
+                <CalendarPlus aria-hidden="true" />{busy ? "予約中…" : "録画予約する"}
+              </Button>
+            )}
+          </div>
+          {!reserved ? (
+            <ReserveEncodeOptions
+              idPrefix={`program-${program.id}`}
+              config={config}
+              encodeMode={encodeMode}
+              removeOriginal={removeOriginal}
+              onEncodeModeChange={setEncodeMode}
+              onRemoveOriginalChange={setRemoveOriginal}
+            />
+          ) : null}
+        </div>
       }
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -142,17 +154,6 @@ export function ProgramReserveDialog({
 
       {program.description ? <p className="mt-4 text-sm leading-6 [overflow-wrap:anywhere]">{program.description}</p> : null}
       {program.extended ? <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground [overflow-wrap:anywhere]">{program.extended}</p> : null}
-
-      <div className={reserved ? "hidden" : "mt-5"}>
-        <ReserveEncodeOptions
-          idPrefix={`program-${program.id}`}
-          config={config}
-          encodeMode={encodeMode}
-          removeOriginal={removeOriginal}
-          onEncodeModeChange={setEncodeMode}
-          onRemoveOriginalChange={setRemoveOriginal}
-        />
-      </div>
     </Dialog>
   );
 }

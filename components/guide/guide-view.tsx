@@ -26,8 +26,6 @@ type BroadcastFilter = "ALL" | ChannelType;
 const BROADCAST_TYPE_LABELS: Record<ChannelType, string> = { GR: "地デジ", BS: "BS", CS: "CS", SKY: "SKY" };
 const BROADCAST_TYPE_ORDER: readonly ChannelType[] = ["GR", "BS", "CS", "SKY"];
 
-const HEADER_HEIGHT = 56;
-
 /** 窓は常にその日の 0 時から。過ぎた時間帯も上へスクロールすれば見られる。 */
 function windowStartFor(date: string): number {
   return jstStartOfDate(date);
@@ -90,7 +88,7 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
         <button
           type="button"
           className={cn(
-            "flex h-14 w-full items-center justify-center text-left transition-colors hover:bg-muted/60",
+            "flex h-[var(--guide-header-height,3.5rem)] w-full items-center justify-center text-left transition-colors hover:bg-muted/60",
             showChannelLogo
               ? "flex-col gap-0.5 px-1 min-[600px]:flex-row min-[600px]:gap-2 min-[600px]:px-2"
               : "px-2",
@@ -199,7 +197,7 @@ function HourLines({ windowMinutes, pixelsPerMinute }: { windowMinutes: number; 
 function TimeAxis({ windowStart, windowMinutes, pixelsPerMinute }: { windowStart: number; windowMinutes: number; pixelsPerMinute: number }) {
   return (
     <div className="sticky left-0 z-30 w-14 shrink-0 border-r bg-background/95 backdrop-blur">
-      <div className="glass-header sticky top-0 z-10 h-14 rounded-none border-x-0 border-t-0" />
+      <div className="glass-header sticky top-0 z-10 h-[var(--guide-header-height,3.5rem)] rounded-none border-x-0 border-t-0" />
       <div className="relative" style={{ height: `${windowMinutes * pixelsPerMinute}px` }}>
         {Array.from({ length: Math.ceil(windowMinutes / 60) }, (_, hour) => (
           <div
@@ -224,7 +222,7 @@ function NowLine({ now, windowStart, windowMinutes, pixelsPerMinute }: { now: nu
     <div
       aria-hidden="true"
       className="pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-red-500"
-      style={{ top: `${HEADER_HEIGHT + offsetMinutes * pixelsPerMinute}px` }}
+      style={{ top: `calc(var(--guide-header-height, 3.5rem) + ${offsetMinutes * pixelsPerMinute}px)` }}
     >
       <span className="absolute -top-2 left-0 rounded-r bg-red-500 px-1.5 py-0.5 text-[0.65rem] leading-3 font-bold text-white">
         {formatTime(now)}
@@ -366,6 +364,14 @@ function GuideGrid({
   const gridStyle = {
     "--guide-column-width": `clamp(${GUIDE_COLUMN_WIDTH_MOBILE * scale}px, ${14 * scale}cqw, ${GUIDE_COLUMN_WIDTH_DESKTOP * scale}px)`,
   } as CSSProperties;
+  // 局ヘッダーの高さ (CSS 変数 --guide-header-height。各要素側の height スタイルの既定値は 3.5rem)。
+  // 放送波・チャンネル番号の行を消す設定のときだけ、少し余裕を残して 2.75rem に縮める。
+  // ロゴ表示ありは 600px 未満でその行がもともと隠れているため、そこだけは縮めない。
+  const headerHeightClass = showChannelInfo
+    ? undefined
+    : showChannelLogo
+      ? "min-[600px]:[--guide-header-height:2.75rem]"
+      : "[--guide-header-height:2.75rem]";
 
   return (
     <div
@@ -376,7 +382,7 @@ function GuideGrid({
       aria-label="番組表"
     >
       {/* 時間軸・列・現在時刻の線を同じ座標系に置くため、内容全体を 1 つの relative でまとめる。 */}
-      <div className="relative flex w-max min-w-full">
+      <div className={cn("relative flex w-max min-w-full", headerHeightClass)}>
         <TimeAxis windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
         {leftSpacer > 0 ? <div aria-hidden="true" style={{ width: leftSpacer }} className="shrink-0" /> : null}
         {columns.map((schedule) => (
