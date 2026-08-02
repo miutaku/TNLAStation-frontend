@@ -9,9 +9,9 @@ describe("display formatting", () => {
     expect(formatTime(timestamp)).toBe("09:05");
   });
 
-  it("formats a full date with the JST weekday", () => {
-    const timestamp = Date.UTC(2038, 1, 20, 0, 0);
-    expect(formatLongDate(timestamp)).toBe("2038/07/19 (金)");
+  it("formats a full date with the JST weekday past the 32-bit Unix time overflow", () => {
+    const timestamp = 2_147_483_647 * 1000;
+    expect(formatLongDate(timestamp)).toBe("2038/01/19 (火)");
   });
 
   it("formats program durations", () => {
