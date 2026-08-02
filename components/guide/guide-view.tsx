@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Clock3, Radio, RefreshCw, Settings } from "lucide-react";
+import { CalendarDays, Radio, RefreshCw, Settings } from "lucide-react";
 import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
@@ -69,7 +69,7 @@ function jstStartOfDate(value: string): number {
  */
 // 列を数フレームに分けて足すとき、既に置いた列まで描き直すと O(n^2) になって重くなる。
 // memo で、番組表 (schedule) と座標系が同じ列は再描画を省く。
-const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windowMinutes, pixelsPerMinute, highlightGenres, showChannelLogo, reservedIds, now, onSelectProgram, onSelectChannel }: {
+const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windowMinutes, pixelsPerMinute, highlightGenres, showChannelLogo, showChannelInfo, reservedIds, now, onSelectProgram, onSelectChannel }: {
   schedule: Schedule;
   windowStart: number;
   windowMinutes: number;
@@ -77,6 +77,7 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
   /** 目立たせる大分類ジャンル。空なら全番組を通常表示。 */
   highlightGenres: readonly number[];
   showChannelLogo: boolean;
+  showChannelInfo: boolean;
   reservedIds: ReadonlySet<number>;
   now: number;
   onSelectProgram: (program: ScheduleProgramItem, channelName: string) => void;
@@ -116,10 +117,12 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
             >
               {schedule.channel.name}
             </h2>
-            <p className={cn("truncate text-xs leading-4 text-muted-foreground", showChannelLogo && "hidden min-[600px]:block")}>
-              {schedule.channel.channelType}
-              {schedule.channel.remoteControlKeyId ? ` ・ ${schedule.channel.remoteControlKeyId}ch` : ""}
-            </p>
+            {showChannelInfo ? (
+              <p className={cn("truncate text-xs leading-4 text-muted-foreground", showChannelLogo && "hidden min-[600px]:block")}>
+                {schedule.channel.channelType}
+                {schedule.channel.remoteControlKeyId ? ` ・ ${schedule.channel.remoteControlKeyId}ch` : ""}
+              </p>
+            ) : null}
           </div>
         </button>
       </header>
@@ -247,6 +250,7 @@ function GuideGrid({
   drawMode,
   highlightGenres,
   showChannelLogo,
+  showChannelInfo,
   columnScale,
   pixelsPerMinute,
   reservedIds,
@@ -261,6 +265,7 @@ function GuideGrid({
   drawMode: GuideDrawMode;
   highlightGenres: readonly number[];
   showChannelLogo: boolean;
+  showChannelInfo: boolean;
   columnScale: number;
   pixelsPerMinute: number;
   reservedIds: ReadonlySet<number>;
@@ -363,47 +368,42 @@ function GuideGrid({
   } as CSSProperties;
 
   return (
-    <>
-      <div className="flex shrink-0 items-center gap-2 border-b bg-muted/55 px-4 py-2 text-xs text-muted-foreground">
-        <Clock3 aria-hidden="true" className="size-4" />
-        横にスクロールしてチャンネルを移動できます
+    <div
+      ref={scrollRef}
+      className="@container min-h-0 flex-1 overflow-auto overscroll-contain"
+      style={gridStyle}
+      role="region"
+      aria-label="番組表"
+    >
+      {/* 時間軸・列・現在時刻の線を同じ座標系に置くため、内容全体を 1 つの relative でまとめる。 */}
+      <div className="relative flex w-max min-w-full">
+        <TimeAxis windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
+        {leftSpacer > 0 ? <div aria-hidden="true" style={{ width: leftSpacer }} className="shrink-0" /> : null}
+        {columns.map((schedule) => (
+          <div
+            key={schedule.channel.id}
+            className="shrink-0"
+            style={{ width: "var(--guide-column-width)" }}
+          >
+            <ProgramColumn
+              schedule={schedule}
+              windowStart={windowStart}
+              windowMinutes={windowMinutes}
+              pixelsPerMinute={pixelsPerMinute}
+              highlightGenres={highlightGenres}
+              showChannelLogo={showChannelLogo}
+              showChannelInfo={showChannelInfo}
+              reservedIds={reservedIds}
+              now={now}
+              onSelectProgram={onSelectProgram}
+              onSelectChannel={onSelectChannel}
+            />
+          </div>
+        ))}
+        {rightSpacer > 0 ? <div aria-hidden="true" style={{ width: rightSpacer }} className="shrink-0" /> : null}
+        <NowLine now={now} windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
       </div>
-      <div
-        ref={scrollRef}
-        className="@container min-h-0 flex-1 overflow-auto overscroll-contain"
-        style={gridStyle}
-        role="region"
-        aria-label="番組表"
-      >
-        {/* 時間軸・列・現在時刻の線を同じ座標系に置くため、内容全体を 1 つの relative でまとめる。 */}
-        <div className="relative flex w-max min-w-full">
-          <TimeAxis windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
-          {leftSpacer > 0 ? <div aria-hidden="true" style={{ width: leftSpacer }} className="shrink-0" /> : null}
-          {columns.map((schedule) => (
-            <div
-              key={schedule.channel.id}
-              className="shrink-0"
-              style={{ width: "var(--guide-column-width)" }}
-            >
-              <ProgramColumn
-                schedule={schedule}
-                windowStart={windowStart}
-                windowMinutes={windowMinutes}
-                pixelsPerMinute={pixelsPerMinute}
-                highlightGenres={highlightGenres}
-                showChannelLogo={showChannelLogo}
-                reservedIds={reservedIds}
-                now={now}
-                onSelectProgram={onSelectProgram}
-                onSelectChannel={onSelectChannel}
-              />
-            </div>
-          ))}
-          {rightSpacer > 0 ? <div aria-hidden="true" style={{ width: rightSpacer }} className="shrink-0" /> : null}
-          <NowLine now={now} windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -515,6 +515,7 @@ export function GuideView() {
             drawMode={preferences.guideDrawMode}
             highlightGenres={preferences.guideGenres}
             showChannelLogo={preferences.isShowGuideChannelLogos}
+            showChannelInfo={preferences.isShowGuideChannelInfo}
             columnScale={preferences.guideColumnScale}
             pixelsPerMinute={preferences.guidePixelsPerMinute}
             reservedIds={reservedIds}

@@ -163,6 +163,13 @@ export function SettingsView() {
               checked={preferences.isHalfWidthDisplayed}
               onCheckedChange={(isHalfWidthDisplayed) => updatePreferences({ isHalfWidthDisplayed })}
             />
+            <SettingRow
+              id="app-header"
+              title="ヘッダーを表示"
+              description="画面上部のロゴ・アプリ名のヘッダーを表示します。"
+              checked={preferences.isShowAppHeader}
+              onCheckedChange={(isShowAppHeader) => updatePreferences({ isShowAppHeader })}
+            />
             <div className="py-4 first:pt-0 last:pb-0">
               <p className="text-sm font-semibold">アクセントカラー</p>
               <p className="mt-1 mb-3 text-xs leading-5 text-muted-foreground">
@@ -215,6 +222,13 @@ export function SettingsView() {
               description="番組表の局見出しにロゴを表示します。モバイルでは局名の上に小さく配置します。"
               checked={preferences.isShowGuideChannelLogos}
               onCheckedChange={(isShowGuideChannelLogos) => updatePreferences({ isShowGuideChannelLogos })}
+            />
+            <SettingRow
+              id="guide-channel-info"
+              title="放送波・チャンネル番号を表示"
+              description="番組表の局見出しの下に放送波の種別とリモコン番号を表示します。"
+              checked={preferences.isShowGuideChannelInfo}
+              onCheckedChange={(isShowGuideChannelInfo) => updatePreferences({ isShowGuideChannelInfo })}
             />
           </CardContent>
         </Card>
