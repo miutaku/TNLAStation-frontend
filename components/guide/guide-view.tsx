@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Radio, RefreshCw, Settings } from "lucide-react";
+import { CalendarDays, Maximize2, Minimize2, Radio, RefreshCw, Settings } from "lucide-react";
 import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
@@ -16,6 +16,7 @@ import { apiClient } from "@/lib/api/client";
 import type { ChannelType, Config, Reserves, Schedule, ScheduleProgramItem } from "@/lib/api/types";
 import { formatDuration, formatTime, genreName, programTone } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
+import { useFullscreen } from "@/lib/hooks/use-fullscreen";
 import { hasFinished, reserveIdByProgram } from "@/lib/program-marks";
 import { usePreferences } from "@/lib/hooks/use-preferences";
 import type { GuideDrawMode } from "@/lib/preferences";
@@ -422,6 +423,8 @@ export function GuideView() {
   const [selectedProgram, setSelectedProgram] = useState<{ program: ScheduleProgramItem; channelName: string } | null>(null);
   const [watchChannel, setWatchChannel] = useState<{ id: number; name: string } | null>(null);
   const { preferences } = usePreferences();
+  const pageRef = useRef<HTMLDivElement>(null);
+  const { isFullscreen, isSupported: isFullscreenSupported, toggle: toggleFullscreen } = useFullscreen(pageRef);
 
   const selectProgram = useCallback((program: ScheduleProgramItem, channelName: string) => {
     setSelectedProgram({ program, channelName });
@@ -537,7 +540,7 @@ export function GuideView() {
   // Note: このページは AppShell 側で main を viewport 固定の flex 列にしているため、
   // h-full ではなく flex-1 だけで高さをつなぐ (h-full は親の高さ確定に依存し崩れやすい)。
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div ref={pageRef} className="flex min-h-0 flex-1 flex-col bg-background">
       {/* モバイル・タブレットでは番組表ページの主役は表そのものなので、タイトル・日付・
           放送波・設定・更新を 1 行に収める最小限のツールバーにして、残りの縦幅をできるだけ
           番組表に譲る。PC (lg 以上) は幅にも高さにも余裕があるので、元の見出し・独立した
@@ -575,6 +578,17 @@ export function GuideView() {
           <Button type="button" variant="ghost" size="icon" aria-label="更新" onClick={resource.revalidate} disabled={resource.isRefreshing}>
             <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
           </Button>
+          {isFullscreenSupported ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={isFullscreen ? "全画面表示を終了" : "全画面表示"}
+              onClick={toggleFullscreen}
+            >
+              {isFullscreen ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+            </Button>
+          ) : null}
         </div>
 
         <div className="hidden lg:block">
@@ -589,6 +603,12 @@ export function GuideView() {
                   <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
                   更新
                 </Button>
+                {isFullscreenSupported ? (
+                  <Button type="button" variant="ghost" onClick={toggleFullscreen}>
+                    {isFullscreen ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+                    {isFullscreen ? "全画面表示を終了" : "全画面表示"}
+                  </Button>
+                ) : null}
               </>
             }
           />
