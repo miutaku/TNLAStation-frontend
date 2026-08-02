@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { isApiFailure } from "@/lib/api-errors";
 import { apiClient } from "@/lib/api/client";
 import { waitForPlaylist } from "@/lib/playlist-readiness";
 import { describeStreamFailure } from "@/lib/stream-errors";
@@ -13,6 +14,12 @@ type StreamRequest =
 
 /** stream id で寿命を管理する配信。プレイリストの場所は種別で決まり方が違う。 */
 const MANAGED_TYPES = ["hls", "lowlatency"];
+
+/**
+ * keep の連続失敗をここまで許す。1 回の失敗は瞬断でも起きるが、続くのはセッション切れや
+ * バックエンド側の抹消で、黙ってリトライを続けると裏で消えた配信を眺め続けることになる。
+ */
+const KEEP_FAILURE_LIMIT = 3;
 
 async function startManaged(
   kind: StreamRequest["kind"],
@@ -85,9 +92,33 @@ export function useManagedStream(request: StreamRequest): {
         }
         activeStreamId.current = started.streamId;
         setStreamId(started.streamId);
-        keepTimer.current = window.setInterval(() => {
-          if (activeStreamId.current !== null) void apiClient.keepStream(activeStreamId.current).catch(() => undefined);
-        }, 10_000);
+        let keepFailures = 0;
+        const keepAlive = async () => {
+          const id = activeStreamId.current;
+          if (id === null) return;
+          try {
+            await apiClient.keepStream(id);
+            keepFailures = 0;
+          } catch (reason) {
+            if (cancelled) return;
+            keepFailures += 1;
+            // 「配信が無い」と言われたら再試行しても戻らない。それ以外は瞬断を数回まで許す。
+            const gone = isApiFailure(reason, "StreamIsUndefined");
+            if (!gone && keepFailures < KEEP_FAILURE_LIMIT) return;
+            if (keepTimer.current !== null) {
+              window.clearInterval(keepTimer.current);
+              keepTimer.current = null;
+            }
+            activeStreamId.current = null;
+            setStreamId(null);
+            setSource(null);
+            setError(gone
+              ? describeStreamFailure(reason)
+              : new Error("配信を維持できません。ネットワークやログインの状態を確認して、開き直してください。"));
+            setIsLoading(false);
+          }
+        };
+        keepTimer.current = window.setInterval(() => void keepAlive(), 10_000);
         const ready = await waitForPlaylist(started.playlistUrl, () => cancelled);
         if (cancelled) return;
         if (!ready) {
