@@ -38,25 +38,25 @@ function windowStartFor(date: string): number {
  * 取り直されずに済む。
  */
 function leadMinutesFor(date: string, now: number): number {
-  if (now <= 0 || date !== todayInJst()) return 0;
+  if (now <= 0 || date !== todayInJst(now)) return 0;
   const hourBefore = Math.floor((now - 3_600_000) / 3_600_000) * 3_600_000;
   return Math.max(0, (hourBefore - jstStartOfDate(date)) / 60_000);
 }
 
 /** 開いたときに見せる位置。直前の番組の途中が見えるよう、現在時刻の 15 分前から。 */
 export function openingMinutesFor(date: string, now: number, leadMinutes: number): number {
-  if (now <= 0 || date !== todayInJst()) return 0;
+  if (now <= 0 || date !== todayInJst(now)) return 0;
   const target = (now - 15 * 60_000 - jstStartOfDate(date)) / 60_000;
   return Math.min(Math.max(0, target), leadMinutes + 60);
 }
 
-function todayInJst(): string {
+function todayInJst(reference: number = Date.now()): string {
   return new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).format(new Date(reference));
 }
 
 function jstStartOfDate(value: string): number {
