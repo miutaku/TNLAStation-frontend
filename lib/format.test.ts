@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { calculateElapsedPercentage, calculatePercentage, formatBytes, formatDateTime, formatDuration, formatTime, genreName } from "./format";
+import { calculateElapsedPercentage, calculatePercentage, formatBytes, formatDateTime, formatDuration, formatLongDate, formatTime, genreName } from "./format";
 
 describe("display formatting", () => {
   it("formats EPG timestamps in JST", () => {
     const timestamp = Date.UTC(2026, 6, 20, 0, 5);
     expect(formatDateTime(timestamp)).toBe("2026/07/20 09:05");
     expect(formatTime(timestamp)).toBe("09:05");
+  });
+
+  it("formats a full date with the JST weekday", () => {
+    const timestamp = Date.UTC(2038, 1, 20, 0, 0);
+    expect(formatLongDate(timestamp)).toBe("2038/07/19 (金)");
   });
 
   it("formats program durations", () => {

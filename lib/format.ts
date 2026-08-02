@@ -28,6 +28,11 @@ export function formatShortDate(timestamp: number): string {
   return `${parts.month}/${parts.day} (${parts.weekday})`;
 }
 
+export function formatLongDate(timestamp: number): string {
+  const parts = dateParts(timestamp);
+  return `${parts.year}/${parts.month}/${parts.day} (${parts.weekday})`;
+}
+
 export function formatTime(timestamp: number): string {
   const parts = dateParts(timestamp);
   return `${parts.hour}:${parts.minute}`;

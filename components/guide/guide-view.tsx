@@ -11,10 +11,9 @@ import { WatchNowDialog } from "@/components/onair/watch-now-dialog";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api/client";
 import type { ChannelType, Config, Reserves, Schedule, ScheduleProgramItem } from "@/lib/api/types";
-import { formatDuration, formatTime, genreName, programTone } from "@/lib/format";
+import { formatDuration, formatLongDate, formatTime, genreName, programTone } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { useFullscreen } from "@/lib/hooks/use-fullscreen";
 import { hasFinished, reserveIdByProgram } from "@/lib/program-marks";
@@ -60,6 +59,18 @@ function todayInJst(reference: number = Date.now()): string {
 
 function jstStartOfDate(value: string): number {
   return Date.parse(`${value}T00:00:00+09:00`);
+}
+
+// Mirakurun の EPG は先の日数までしか取得できていないため、選べる範囲を固定日数のリストに絞る。
+// バックエンドから取得可能な範囲を問い合わせる手段が無いため、一般的な取得幅を目安にした固定値。
+const GUIDE_DATE_LIST_DAYS = 8;
+
+function guideDateOptions(reference: number = Date.now()): { value: string; label: string }[] {
+  const start = jstStartOfDate(todayInJst(reference));
+  return Array.from({ length: GUIDE_DATE_LIST_DAYS }, (_, index) => {
+    const timestamp = start + index * 86_400_000;
+    return { value: todayInJst(timestamp), label: formatLongDate(timestamp) };
+  });
 }
 
 /**
@@ -425,6 +436,7 @@ export function GuideView() {
   const { preferences } = usePreferences();
   const pageRef = useRef<HTMLDivElement>(null);
   const { isFullscreen, isSupported: isFullscreenSupported, toggle: toggleFullscreen } = useFullscreen(pageRef);
+  const dateOptions = useMemo(() => guideDateOptions(), []);
 
   const selectProgram = useCallback((program: ScheduleProgramItem, channelName: string) => {
     setSelectedProgram({ program, channelName });
@@ -548,14 +560,17 @@ export function GuideView() {
       <div className="shrink-0 overflow-x-hidden overflow-y-auto px-3 pt-3 sm:px-4 lg:px-6 lg:pt-8">
         <div className="mb-2 flex flex-wrap items-center gap-2 lg:hidden">
           <h1 className="mr-auto text-lg font-bold tracking-tight">番組表</h1>
-          <Input
+          <select
             id="guide-date"
-            type="date"
             aria-label="放送日"
             value={date}
-            onChange={(event) => event.target.value && setDate(event.target.value)}
-            className="h-9 w-auto"
-          />
+            onChange={(event) => setDate(event.target.value)}
+            className="h-9 min-w-0 max-w-full rounded-lg border border-input bg-background/75 px-2 text-sm shadow-xs"
+          >
+            {dateOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
           <div role="group" aria-label="放送波" className="flex gap-1 rounded-lg bg-muted p-1">
             {filters.map((filter) => (
               <Button
@@ -619,12 +634,16 @@ export function GuideView() {
                 <CalendarDays aria-hidden="true" className="size-4 text-primary" />
                 放送日
               </label>
-              <Input
+              <select
                 id="guide-date-desktop"
-                type="date"
                 value={date}
-                onChange={(event) => event.target.value && setDate(event.target.value)}
-              />
+                onChange={(event) => setDate(event.target.value)}
+                className="h-10 min-w-0 w-full max-w-full rounded-lg border border-input bg-background/75 px-3 text-sm shadow-xs"
+              >
+                {dateOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
             </div>
             <fieldset className="min-w-0">
               <legend className="mb-2 flex items-center gap-2 text-sm font-semibold">
