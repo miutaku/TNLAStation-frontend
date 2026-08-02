@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { usePortalContainer } from "@/lib/hooks/use-portal-container";
 import { cn } from "@/lib/utils";
 
 /** 画面の端に貼り付かないための余白。 */
@@ -44,6 +45,7 @@ export function AnchoredMenu({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<Placement | null>(null);
+  const portalContainer = usePortalContainer();
 
   useLayoutEffect(() => {
     if (!open || anchor === null) return;
@@ -91,7 +93,7 @@ export function AnchoredMenu({
     if (open) panelRef.current?.focus();
   }, [open, placement]);
 
-  if (!open || placement === null || typeof document === "undefined") return null;
+  if (!open || placement === null || portalContainer === null) return null;
 
   return createPortal(
     <>
@@ -123,6 +125,6 @@ export function AnchoredMenu({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
       </div>
     </>,
-    document.body,
+    portalContainer,
   );
 }

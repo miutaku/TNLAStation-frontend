@@ -4,6 +4,8 @@ import { X } from "lucide-react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { usePortalContainer } from "@/lib/hooks/use-portal-container";
+
 /**
  * 汎用モーダル。ConfirmDialog と同じ背景・フォーカストラップの作法をそろえ、
  * 中身だけ差し替えられるようにしたもの。番組の予約メニューや視聴選択で使う。
@@ -27,6 +29,7 @@ export function Dialog({
   const fallbackTitleId = useId();
   const titleId = labelledBy ?? fallbackTitleId;
   const panelRef = useRef<HTMLDivElement>(null);
+  const portalContainer = usePortalContainer();
 
   useEffect(() => {
     if (!open) return;
@@ -64,10 +67,11 @@ export function Dialog({
     };
   }, [onClose, open]);
 
-  if (!open || typeof document === "undefined") return null;
+  if (!open || portalContainer === null) return null;
 
   // ガラス面 (backdrop-filter) などが包含ブロックを作ると position:fixed の基準がずれ、
   // ダイアログがビューポート中央ではなくページ中央に出てしまう。body へ portal して回避する。
+  // ただし全画面表示中は全画面化した要素の外が描画されないため、そのときはその要素へ出す。
   return createPortal(
     <div className="fixed inset-0 z-[80] grid place-items-center p-4">
       <button type="button" aria-label="閉じる" className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" onClick={onClose} />
@@ -92,6 +96,6 @@ export function Dialog({
         {footer ? <div className="flex flex-col-reverse gap-2 border-t p-5 landscape:flex-row sm:flex-row sm:justify-end sm:p-6">{footer}</div> : null}
       </div>
     </div>,
-    document.body,
+    portalContainer,
   );
 }

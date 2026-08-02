@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
+import { usePortalContainer } from "@/lib/hooks/use-portal-container";
 
 export function ConfirmDialog({
   open,
@@ -30,6 +31,7 @@ export function ConfirmDialog({
   const titleId = useId();
   const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  const portalContainer = usePortalContainer();
 
   useEffect(() => {
     if (!open) return;
@@ -66,9 +68,10 @@ export function ConfirmDialog({
     };
   }, [busy, onCancel, open]);
 
-  if (!open || typeof document === "undefined") return null;
+  if (!open || portalContainer === null) return null;
 
   // backdrop-filter などの祖先が包含ブロックを作ると fixed の基準がずれるため body へ portal する。
+  // 全画面表示中は全画面化した要素の外が描画されないため、そのときはその要素へ出す。
   return createPortal(
     <div className="fixed inset-0 z-[80] grid place-items-center p-4">
       <button
@@ -97,6 +100,6 @@ export function ConfirmDialog({
         </div>
       </div>
     </div>,
-    document.body,
+    portalContainer,
   );
 }
