@@ -27,6 +27,8 @@ export interface AppPreferences {
   guideDrawMode: GuideDrawMode;
   /** 番組表の局ヘッダーに放送局ロゴを表示する。 */
   isShowGuideChannelLogos: boolean;
+  /** 番組表の局ヘッダーに放送波・チャンネル番号を表示する。 */
+  isShowGuideChannelInfo: boolean;
   /** レスポンシブな標準局列幅に対する倍率（%）。 */
   guideColumnScale: number;
   /** 番組の1分を縦方向に何pxで描くか。 */
@@ -50,6 +52,8 @@ export interface AppPreferences {
   bottomBarItems: string[];
   /** 差し色の色相 (oklch の H、0〜359 度)。既定はアプリ本来の赤みのあるピンク。 */
   accentHue: number;
+  /** アプリ上部のヘッダー (ロゴ・アプリ名) を表示する。 */
+  isShowAppHeader: boolean;
 }
 
 /** 差し色の既定値。globals.css の --primary-hue の既定値と揃える。 */
@@ -62,6 +66,7 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   guideLength: 24,
   guideDrawMode: "sequential",
   isShowGuideChannelLogos: true,
+  isShowGuideChannelInfo: true,
   guideColumnScale: 150,
   guidePixelsPerMinute: 3,
   guideGenres: [],
@@ -72,6 +77,7 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   glassDisabled: false,
   bottomBarItems: [...DEFAULT_BOTTOM_BAR_ITEMS],
   accentHue: DEFAULT_ACCENT_HUE,
+  isShowAppHeader: true,
 };
 
 /** 番組表の表示時間の選択肢。1〜24 時間を 1 時間刻みで。 */
@@ -143,6 +149,10 @@ export function parsePreferences(value: string | null): AppPreferences {
         typeof parsed.isShowGuideChannelLogos === "boolean"
           ? parsed.isShowGuideChannelLogos
           : DEFAULT_PREFERENCES.isShowGuideChannelLogos,
+      isShowGuideChannelInfo:
+        typeof parsed.isShowGuideChannelInfo === "boolean"
+          ? parsed.isShowGuideChannelInfo
+          : DEFAULT_PREFERENCES.isShowGuideChannelInfo,
       guideColumnScale: toClampedNumber(
         parsed.guideColumnScale,
         GUIDE_COLUMN_SCALE_MIN,
@@ -171,6 +181,7 @@ export function parsePreferences(value: string | null): AppPreferences {
       glassDisabled: typeof parsed.glassDisabled === "boolean" ? parsed.glassDisabled : DEFAULT_PREFERENCES.glassDisabled,
       bottomBarItems: toBottomBarItems(parsed.bottomBarItems),
       accentHue: toAccentHue(parsed.accentHue),
+      isShowAppHeader: typeof parsed.isShowAppHeader === "boolean" ? parsed.isShowAppHeader : DEFAULT_PREFERENCES.isShowAppHeader,
     };
   } catch {
     return DEFAULT_PREFERENCES;

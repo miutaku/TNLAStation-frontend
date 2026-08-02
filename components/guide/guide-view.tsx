@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Clock3, Radio, RefreshCw, Settings } from "lucide-react";
+import { CalendarDays, Maximize2, Minimize2, Radio, RefreshCw, Settings } from "lucide-react";
 import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
@@ -16,6 +16,7 @@ import { apiClient } from "@/lib/api/client";
 import type { ChannelType, Config, Reserves, Schedule, ScheduleProgramItem } from "@/lib/api/types";
 import { formatDuration, formatTime, genreName, programTone } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
+import { useFullscreen } from "@/lib/hooks/use-fullscreen";
 import { hasFinished, reserveIdByProgram } from "@/lib/program-marks";
 import { usePreferences } from "@/lib/hooks/use-preferences";
 import type { GuideDrawMode } from "@/lib/preferences";
@@ -25,8 +26,6 @@ type BroadcastFilter = "ALL" | ChannelType;
 
 const BROADCAST_TYPE_LABELS: Record<ChannelType, string> = { GR: "地デジ", BS: "BS", CS: "CS", SKY: "SKY" };
 const BROADCAST_TYPE_ORDER: readonly ChannelType[] = ["GR", "BS", "CS", "SKY"];
-
-const HEADER_HEIGHT = 56;
 
 /** 窓は常にその日の 0 時から。過ぎた時間帯も上へスクロールすれば見られる。 */
 function windowStartFor(date: string): number {
@@ -69,7 +68,7 @@ function jstStartOfDate(value: string): number {
  */
 // 列を数フレームに分けて足すとき、既に置いた列まで描き直すと O(n^2) になって重くなる。
 // memo で、番組表 (schedule) と座標系が同じ列は再描画を省く。
-const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windowMinutes, pixelsPerMinute, highlightGenres, showChannelLogo, reservedIds, now, onSelectProgram, onSelectChannel }: {
+const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windowMinutes, pixelsPerMinute, highlightGenres, showChannelLogo, showChannelInfo, reservedIds, now, onSelectProgram, onSelectChannel }: {
   schedule: Schedule;
   windowStart: number;
   windowMinutes: number;
@@ -77,6 +76,7 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
   /** 目立たせる大分類ジャンル。空なら全番組を通常表示。 */
   highlightGenres: readonly number[];
   showChannelLogo: boolean;
+  showChannelInfo: boolean;
   reservedIds: ReadonlySet<number>;
   now: number;
   onSelectProgram: (program: ScheduleProgramItem, channelName: string) => void;
@@ -89,7 +89,7 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
         <button
           type="button"
           className={cn(
-            "flex h-14 w-full items-center justify-center text-left transition-colors hover:bg-muted/60",
+            "flex h-[var(--guide-header-height,3.5rem)] w-full items-center justify-center text-left transition-colors hover:bg-muted/60",
             showChannelLogo
               ? "flex-col gap-0.5 px-1 min-[600px]:flex-row min-[600px]:gap-2 min-[600px]:px-2"
               : "px-2",
@@ -116,10 +116,12 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
             >
               {schedule.channel.name}
             </h2>
-            <p className={cn("truncate text-xs leading-4 text-muted-foreground", showChannelLogo && "hidden min-[600px]:block")}>
-              {schedule.channel.channelType}
-              {schedule.channel.remoteControlKeyId ? ` ・ ${schedule.channel.remoteControlKeyId}ch` : ""}
-            </p>
+            {showChannelInfo ? (
+              <p className={cn("truncate text-xs leading-4 text-muted-foreground", showChannelLogo && "hidden min-[600px]:block")}>
+                {schedule.channel.channelType}
+                {schedule.channel.remoteControlKeyId ? ` ・ ${schedule.channel.remoteControlKeyId}ch` : ""}
+              </p>
+            ) : null}
           </div>
         </button>
       </header>
@@ -196,7 +198,7 @@ function HourLines({ windowMinutes, pixelsPerMinute }: { windowMinutes: number; 
 function TimeAxis({ windowStart, windowMinutes, pixelsPerMinute }: { windowStart: number; windowMinutes: number; pixelsPerMinute: number }) {
   return (
     <div className="sticky left-0 z-30 w-14 shrink-0 border-r bg-background/95 backdrop-blur">
-      <div className="glass-header sticky top-0 z-10 h-14 rounded-none border-x-0 border-t-0" />
+      <div className="glass-header sticky top-0 z-10 h-[var(--guide-header-height,3.5rem)] rounded-none border-x-0 border-t-0" />
       <div className="relative" style={{ height: `${windowMinutes * pixelsPerMinute}px` }}>
         {Array.from({ length: Math.ceil(windowMinutes / 60) }, (_, hour) => (
           <div
@@ -221,7 +223,7 @@ function NowLine({ now, windowStart, windowMinutes, pixelsPerMinute }: { now: nu
     <div
       aria-hidden="true"
       className="pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-red-500"
-      style={{ top: `${HEADER_HEIGHT + offsetMinutes * pixelsPerMinute}px` }}
+      style={{ top: `calc(var(--guide-header-height, 3.5rem) + ${offsetMinutes * pixelsPerMinute}px)` }}
     >
       <span className="absolute -top-2 left-0 rounded-r bg-red-500 px-1.5 py-0.5 text-[0.65rem] leading-3 font-bold text-white">
         {formatTime(now)}
@@ -247,6 +249,7 @@ function GuideGrid({
   drawMode,
   highlightGenres,
   showChannelLogo,
+  showChannelInfo,
   columnScale,
   pixelsPerMinute,
   reservedIds,
@@ -261,6 +264,7 @@ function GuideGrid({
   drawMode: GuideDrawMode;
   highlightGenres: readonly number[];
   showChannelLogo: boolean;
+  showChannelInfo: boolean;
   columnScale: number;
   pixelsPerMinute: number;
   reservedIds: ReadonlySet<number>;
@@ -361,49 +365,52 @@ function GuideGrid({
   const gridStyle = {
     "--guide-column-width": `clamp(${GUIDE_COLUMN_WIDTH_MOBILE * scale}px, ${14 * scale}cqw, ${GUIDE_COLUMN_WIDTH_DESKTOP * scale}px)`,
   } as CSSProperties;
+  // 局ヘッダーの高さ (CSS 変数 --guide-header-height。各要素側の height スタイルの既定値は 3.5rem)。
+  // 放送波・チャンネル番号の行を消す設定のときだけ、少し余裕を残して 2.75rem に縮める。
+  // ロゴ表示ありは 600px 未満でその行がもともと隠れているため、そこだけは縮めない。
+  const headerHeightClass = showChannelInfo
+    ? undefined
+    : showChannelLogo
+      ? "min-[600px]:[--guide-header-height:2.75rem]"
+      : "[--guide-header-height:2.75rem]";
 
   return (
-    <>
-      <div className="flex shrink-0 items-center gap-2 border-b bg-muted/55 px-4 py-2 text-xs text-muted-foreground">
-        <Clock3 aria-hidden="true" className="size-4" />
-        横にスクロールしてチャンネルを移動できます
+    <div
+      ref={scrollRef}
+      className="@container min-h-0 flex-1 overflow-auto overscroll-contain"
+      style={gridStyle}
+      role="region"
+      aria-label="番組表"
+    >
+      {/* 時間軸・列・現在時刻の線を同じ座標系に置くため、内容全体を 1 つの relative でまとめる。 */}
+      <div className={cn("relative flex w-max min-w-full", headerHeightClass)}>
+        <TimeAxis windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
+        {leftSpacer > 0 ? <div aria-hidden="true" style={{ width: leftSpacer }} className="shrink-0" /> : null}
+        {columns.map((schedule) => (
+          <div
+            key={schedule.channel.id}
+            className="shrink-0"
+            style={{ width: "var(--guide-column-width)" }}
+          >
+            <ProgramColumn
+              schedule={schedule}
+              windowStart={windowStart}
+              windowMinutes={windowMinutes}
+              pixelsPerMinute={pixelsPerMinute}
+              highlightGenres={highlightGenres}
+              showChannelLogo={showChannelLogo}
+              showChannelInfo={showChannelInfo}
+              reservedIds={reservedIds}
+              now={now}
+              onSelectProgram={onSelectProgram}
+              onSelectChannel={onSelectChannel}
+            />
+          </div>
+        ))}
+        {rightSpacer > 0 ? <div aria-hidden="true" style={{ width: rightSpacer }} className="shrink-0" /> : null}
+        <NowLine now={now} windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
       </div>
-      <div
-        ref={scrollRef}
-        className="@container min-h-0 flex-1 overflow-auto overscroll-contain"
-        style={gridStyle}
-        role="region"
-        aria-label="番組表"
-      >
-        {/* 時間軸・列・現在時刻の線を同じ座標系に置くため、内容全体を 1 つの relative でまとめる。 */}
-        <div className="relative flex w-max min-w-full">
-          <TimeAxis windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
-          {leftSpacer > 0 ? <div aria-hidden="true" style={{ width: leftSpacer }} className="shrink-0" /> : null}
-          {columns.map((schedule) => (
-            <div
-              key={schedule.channel.id}
-              className="shrink-0"
-              style={{ width: "var(--guide-column-width)" }}
-            >
-              <ProgramColumn
-                schedule={schedule}
-                windowStart={windowStart}
-                windowMinutes={windowMinutes}
-                pixelsPerMinute={pixelsPerMinute}
-                highlightGenres={highlightGenres}
-                showChannelLogo={showChannelLogo}
-                reservedIds={reservedIds}
-                now={now}
-                onSelectProgram={onSelectProgram}
-                onSelectChannel={onSelectChannel}
-              />
-            </div>
-          ))}
-          {rightSpacer > 0 ? <div aria-hidden="true" style={{ width: rightSpacer }} className="shrink-0" /> : null}
-          <NowLine now={now} windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -416,6 +423,8 @@ export function GuideView() {
   const [selectedProgram, setSelectedProgram] = useState<{ program: ScheduleProgramItem; channelName: string } | null>(null);
   const [watchChannel, setWatchChannel] = useState<{ id: number; name: string } | null>(null);
   const { preferences } = usePreferences();
+  const pageRef = useRef<HTMLDivElement>(null);
+  const { isFullscreen, isSupported: isFullscreenSupported, toggle: toggleFullscreen } = useFullscreen(pageRef);
 
   const selectProgram = useCallback((program: ScheduleProgramItem, channelName: string) => {
     setSelectedProgram({ program, channelName });
@@ -515,6 +524,7 @@ export function GuideView() {
             drawMode={preferences.guideDrawMode}
             highlightGenres={preferences.guideGenres}
             showChannelLogo={preferences.isShowGuideChannelLogos}
+            showChannelInfo={preferences.isShowGuideChannelInfo}
             columnScale={preferences.guideColumnScale}
             pixelsPerMinute={preferences.guidePixelsPerMinute}
             reservedIds={reservedIds}
@@ -530,7 +540,7 @@ export function GuideView() {
   // Note: このページは AppShell 側で main を viewport 固定の flex 列にしているため、
   // h-full ではなく flex-1 だけで高さをつなぐ (h-full は親の高さ確定に依存し崩れやすい)。
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div ref={pageRef} className="flex min-h-0 flex-1 flex-col bg-background">
       {/* モバイル・タブレットでは番組表ページの主役は表そのものなので、タイトル・日付・
           放送波・設定・更新を 1 行に収める最小限のツールバーにして、残りの縦幅をできるだけ
           番組表に譲る。PC (lg 以上) は幅にも高さにも余裕があるので、元の見出し・独立した
@@ -568,6 +578,17 @@ export function GuideView() {
           <Button type="button" variant="ghost" size="icon" aria-label="更新" onClick={resource.revalidate} disabled={resource.isRefreshing}>
             <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
           </Button>
+          {isFullscreenSupported ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={isFullscreen ? "全画面表示を終了" : "全画面表示"}
+              onClick={toggleFullscreen}
+            >
+              {isFullscreen ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+            </Button>
+          ) : null}
         </div>
 
         <div className="hidden lg:block">
@@ -582,6 +603,12 @@ export function GuideView() {
                   <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
                   更新
                 </Button>
+                {isFullscreenSupported ? (
+                  <Button type="button" variant="ghost" onClick={toggleFullscreen}>
+                    {isFullscreen ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+                    {isFullscreen ? "全画面表示を終了" : "全画面表示"}
+                  </Button>
+                ) : null}
               </>
             }
           />
@@ -623,9 +650,10 @@ export function GuideView() {
         </div>
       </div>
 
-      {/* BottomNav (h-[4.5rem] + bottom-[safe-area+0.75rem]、lg 以上では非表示) の下に
-          番組表が潜り込まないよう、その実寸ぶんを正確に下 padding として確保する。 */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+5.25rem)] sm:px-6 lg:px-10 lg:pb-8">
+      {/* BottomNav はガラス素材の半透明タブバーなので、番組表はその下端 (safe-area+0.75rem、
+          lg 以上では非表示) まで潜り込ませて奥に見せる。タブバー自体の帯 (h-[4.5rem] 分) は
+          pointer-events-auto で自分だけクリックを受け取るため、透けて見える番組も操作できる。 */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-6 lg:px-10 lg:pb-8">
         {resourceState}
       </div>
 

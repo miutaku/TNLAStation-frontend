@@ -308,7 +308,7 @@ export function GlassTabBar({
     <div
       ref={glassRef}
       className={cn(
-        "chrome-tabbar relative mx-auto flex h-[4.5rem] w-full max-w-[26rem] items-center justify-around rounded-full border border-border/50 px-2 shadow-[0_10px_28px_rgb(0_0_0_/_0.16)]",
+        "chrome-tabbar pointer-events-auto relative mx-auto flex h-[4.5rem] w-full max-w-[26rem] items-center justify-around rounded-full border border-border/50 px-2 shadow-[0_10px_28px_rgb(0_0_0_/_0.16)]",
       )}
     >
       {/* 常駐する選択ピル。layoutIndicator/squashIndicator が transform だけで動かす。 */}

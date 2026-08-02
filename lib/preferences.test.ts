@@ -19,6 +19,7 @@ describe("preferences", () => {
           isShowOnlyFreePrograms: true,
           guideLength: 12,
           isShowGuideChannelLogos: false,
+          isShowGuideChannelInfo: false,
           guideColumnScale: 175,
           guidePixelsPerMinute: 4.25,
           reservesLength: 48,
@@ -26,6 +27,7 @@ describe("preferences", () => {
           isShowDropInfo: false,
           glassOpacity: 20,
           glassDisabled: true,
+          isShowAppHeader: false,
         }),
       ),
     ).toEqual({
@@ -35,6 +37,7 @@ describe("preferences", () => {
       guideLength: 12,
       guideDrawMode: "sequential",
       isShowGuideChannelLogos: false,
+      isShowGuideChannelInfo: false,
       guideColumnScale: 175,
       guidePixelsPerMinute: 4.25,
       guideGenres: [],
@@ -45,6 +48,7 @@ describe("preferences", () => {
       glassDisabled: true,
       bottomBarItems: DEFAULT_BOTTOM_BAR_ITEMS,
       accentHue: DEFAULT_PREFERENCES.accentHue,
+      isShowAppHeader: false,
     });
   });
 

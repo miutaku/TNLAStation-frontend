@@ -58,7 +58,7 @@ function SidebarLinks() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  usePreferences();
+  const { preferences } = usePreferences();
   const pathname = usePathname();
 
   // 番組表ページだけ main を viewport ぴったりの高さに縛り、fixed の BottomNav と
@@ -109,9 +109,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className={cn("min-w-0", "lg:pl-60", lockViewport && "flex h-full flex-col overflow-hidden")}>
-        <header className="chrome-header sticky top-0 z-20 flex h-14 shrink-0 items-center px-4 lg:hidden">
-          <Brand />
-        </header>
+        {preferences.isShowAppHeader ? (
+          <header className="chrome-header sticky top-0 z-20 flex h-14 shrink-0 items-center px-4 lg:hidden">
+            <Brand />
+          </header>
+        ) : null}
 
         <main
           id="main-content"

@@ -89,6 +89,10 @@ export function GuideSettingView() {
             <Switch checked={preferences.isShowGuideChannelLogos} aria-labelledby="guide-logo-label" aria-describedby="guide-logo-description" onClick={() => updatePreferences({ isShowGuideChannelLogos: !preferences.isShowGuideChannelLogos })} />
           </div>
           <div className="flex items-start justify-between gap-5 py-4">
+            <div><p id="guide-channel-info-label" className="text-sm font-semibold">放送波・チャンネル番号を表示</p><p id="guide-channel-info-description" className="mt-1 text-xs leading-5 text-muted-foreground">局見出しの下に放送波の種別とリモコン番号を表示します。</p></div>
+            <Switch checked={preferences.isShowGuideChannelInfo} aria-labelledby="guide-channel-info-label" aria-describedby="guide-channel-info-description" onClick={() => updatePreferences({ isShowGuideChannelInfo: !preferences.isShowGuideChannelInfo })} />
+          </div>
+          <div className="flex items-start justify-between gap-5 py-4">
             <div><p id="guide-half-label" className="text-sm font-semibold">半角表示</p><p id="guide-half-description" className="mt-1 text-xs leading-5 text-muted-foreground">API から半角文字の番組情報を取得します。</p></div>
             <Switch checked={preferences.isHalfWidthDisplayed} aria-labelledby="guide-half-label" aria-describedby="guide-half-description" onClick={() => updatePreferences({ isHalfWidthDisplayed: !preferences.isHalfWidthDisplayed })} />
           </div>
