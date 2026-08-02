@@ -138,14 +138,33 @@ export class EpgStationApiClient {
     return response;
   }
 
+  /**
+   * 成功応答を JSON として読む。Cloudflare Access などの前段は、セッションが切れると
+   * 200 でログインページの HTML を返すことがある。そのまま SyntaxError を投げると
+   * 原因が読めないので、理由の分かるエラーにする。
+   */
+  private async readJsonBody<T>(response: Response, endpoint: string): Promise<T> {
+    try {
+      return (await response.json()) as T;
+    } catch {
+      throw new ApiError(
+        "TNLAStation API returned a response that is not JSON. ページを再読み込みして、ログインし直してください。",
+        response.status,
+        endpoint,
+        undefined,
+        "NonJsonResponse",
+      );
+    }
+  }
+
   private async get<T>(path: string, query?: Query, signal?: AbortSignal): Promise<T> {
     const response = await this.request("GET", path, { query, signal });
-    return (await response.json()) as T;
+    return this.readJsonBody<T>(response, path);
   }
 
   private async post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
     const response = await this.request("POST", path, { body, signal });
-    return (await response.json()) as T;
+    return this.readJsonBody<T>(response, path);
   }
 
   private async requestVoid(
@@ -273,7 +292,7 @@ export class EpgStationApiClient {
 
   async getVersion(signal?: AbortSignal): Promise<VersionInfo> {
     const response = await this.request("GET", "/version", { signal });
-    const compatibility = (await response.json()) as Pick<VersionInfo, "version">;
+    const compatibility = await this.readJsonBody<Pick<VersionInfo, "version">>(response, "/version");
     const tnlaStationVersion = response.headers.get("X-TNLAStation-Version")?.trim();
     if (tnlaStationVersion) {
       return {

@@ -16,6 +16,8 @@ const STREAM_FAILURES: Record<string, string> = {
   MirakurunIsNotConfigured: "Mirakurun が設定されていません。",
   VideoFileIsNotFound: "録画ファイルが見つかりません。",
   StreamIsNotFound: "配信が見つかりません。開き直してください。",
+  StreamIsUndefined: "配信が見つかりません。開き直してください。",
+  NonJsonResponse: "API の応答が読めません。ページを再読み込みして、ログインし直してください。",
 };
 
 export function describeStreamFailure(reason: unknown): Error {

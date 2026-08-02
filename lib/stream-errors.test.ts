@@ -20,6 +20,12 @@ describe("describeStreamFailure", () => {
     }
   });
 
+  it("tells the viewer to reopen when the backend has already dropped the session", () => {
+    expect(describeStreamFailure(apiFailure("StreamIsUndefined")).message).toBe(
+      "配信が見つかりません。開き直してください。",
+    );
+  });
+
   it("shows the raw code when the reason is unknown so it stays traceable", () => {
     expect(describeStreamFailure(apiFailure("SomethingNewUpstream")).message).toBe("SomethingNewUpstream");
   });

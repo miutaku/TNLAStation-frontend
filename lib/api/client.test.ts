@@ -55,6 +55,20 @@ describe("EpgStationApiClient", () => {
     expect(requested).toEqual(["/api/config", "/api/version"]);
   });
 
+  it("rejects a 200 that is not JSON instead of failing with a SyntaxError", async () => {
+    // Cloudflare Access などの前段は、セッションが切れると 200 でログインページを返す。
+    const fetcher = vi.fn(async () => new Response("<!doctype html><title>Sign in</title>", {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    }));
+    const client = new EpgStationApiClient({ baseUrl: "/api", fetcher });
+
+    const failure = await client.getConfig().catch((reason: unknown) => reason);
+
+    expect(failure).toBeInstanceOf(ApiError);
+    expect((failure as ApiError).reason).toBe("NonJsonResponse");
+  });
+
   it("identifies an unknown compatible backend when the TNLAStation version header is absent", async () => {
     const fetcher = vi.fn(async () => new Response(
       JSON.stringify({ version: "2.10.0" }),
