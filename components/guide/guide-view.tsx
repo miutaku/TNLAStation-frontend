@@ -630,9 +630,10 @@ export function GuideView() {
         </div>
       </div>
 
-      {/* BottomNav (h-[4.5rem] + bottom-[safe-area+0.75rem]、lg 以上では非表示) の下に
-          番組表が潜り込まないよう、その実寸ぶんを正確に下 padding として確保する。 */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+5.25rem)] sm:px-6 lg:px-10 lg:pb-8">
+      {/* BottomNav はガラス素材の半透明タブバーなので、番組表はその下端 (safe-area+0.75rem、
+          lg 以上では非表示) まで潜り込ませて奥に見せる。タブバー自体の帯 (h-[4.5rem] 分) は
+          pointer-events-auto で自分だけクリックを受け取るため、透けて見える番組も操作できる。 */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-6 lg:px-10 lg:pb-8">
         {resourceState}
       </div>
 

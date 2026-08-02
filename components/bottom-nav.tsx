@@ -94,7 +94,10 @@ export function BottomNav() {
         </div>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-50 px-3 lg:hidden">
+      {/* この帯の外周 (左右の余白) はタブバーの丸みの外側にあたる透明な領域なので、
+          pointer-events-none で下のコンテンツへクリックを通す。実際に操作できる
+          ピル本体 (GlassTabBar) 側だけ pointer-events-auto で受け取り直す。 */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-50 px-3 lg:hidden">
         <GlassTabBar
           moreOpen={sheetOpen}
           pendingSecondaryHref={pendingSecondaryHref}
