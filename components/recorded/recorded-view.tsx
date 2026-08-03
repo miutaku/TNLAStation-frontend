@@ -13,6 +13,7 @@ import {
 } from "@/components/collection-view";
 import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
+import { SortMenu, sortItems, useSortState, type SortAccessors, type SortColumnDefinition } from "@/components/sortable-columns";
 import {
   EMPTY_PROGRAM_COLLECTION_SEARCH,
   ProgramCollectionSearch,
@@ -71,9 +72,32 @@ const recordedTableColumns = [
 type RecordedTableColumn = (typeof recordedTableColumns)[number]["key"];
 type BulkDeleteOption = FileDeleteOption;
 
+function totalFileSize(item: RecordedItem): number {
+  return item.videoFiles?.reduce((total, file) => total + file.size, 0) ?? 0;
+}
+
+function recordedStatusRank(item: RecordedItem): number {
+  if (item.isRecording) return 0;
+  if (item.isEncoding) return 1;
+  if (item.isProtected) return 2;
+  return 3;
+}
+
+const recordedSortAccessors: SortAccessors<RecordedItem, RecordedTableColumn> = {
+  status: (item) => recordedStatusRank(item),
+  program: (item) => item.name,
+  recordedAt: (item) => item.startAt,
+  station: (item) => item.channelId,
+  genre: (item) => item.genre1 ?? -1,
+  duration: (item) => item.endAt - item.startAt,
+  size: (item) => totalFileSize(item),
+  drop: (item) => item.dropLogFile?.dropCnt ?? 0,
+};
+const sortableRecordedColumns = Object.keys(recordedSortAccessors) as RecordedTableColumn[];
+
 function RecordedCard({ item, showDropInfo, selectable, selected, onToggleSelect, viewMode }: { item: RecordedItem; showDropInfo: boolean; selectable: boolean; selected: boolean; onToggleSelect: (id: number) => void; viewMode: CollectionViewMode }) {
   const channelName = useChannelNames();
-  const fileSize = item.videoFiles?.reduce((total, file) => total + file.size, 0) ?? 0;
+  const fileSize = totalFileSize(item);
   return (
     <Card className={`group overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lg ${selected ? "ring-2 ring-primary" : ""}`}>
       <article
@@ -177,7 +201,7 @@ function RecordedTable({
   const visibleColumns = columns.columns.filter((column) => columns.isVisible(column.key));
 
   const renderCell = (key: RecordedTableColumn, item: RecordedItem) => {
-    const fileSize = item.videoFiles?.reduce((total, file) => total + file.size, 0) ?? 0;
+    const fileSize = totalFileSize(item);
     const hasDrop = (item.dropLogFile?.dropCnt ?? 0) > 0 || (item.dropLogFile?.errorCnt ?? 0) > 0;
     switch (key) {
       case "status":
@@ -305,6 +329,11 @@ export function RecordedView() {
     [preferences.isShowDropInfo],
   );
   const tableColumns = useTableColumnVisibility("recorded", availableTableColumns);
+  const sort = useSortState("recorded", sortableRecordedColumns);
+  const recordedSortColumns: SortColumnDefinition<RecordedTableColumn>[] = useMemo(
+    () => availableTableColumns.filter((column) => recordedSortAccessors[column.key]),
+    [availableTableColumns],
+  );
   const searchQuery = useMemo(() => toProgramCollectionQuery(search), [search]);
   const loadPageOptions = useCallback(
     async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; rules: Rule[]; config: Config }> => {
@@ -365,6 +394,10 @@ export function RecordedView() {
     setPage(1);
   };
   const hasSearch = hasProgramCollectionQuery(search) || originalOnly;
+  const sortedRecords = useMemo(
+    () => (resource.data ? sortItems(resource.data.records, sort, recordedSortAccessors) : []),
+    [resource.data, sort],
+  );
 
   const toggleSelect = useCallback((id: number) => {
     setSelectedIds((current) => {
@@ -656,6 +689,7 @@ export function RecordedView() {
           </p>
         ) : null}
         {viewMode === "list" ? <TableColumnVisibilityMenu state={tableColumns} label="録画済み一覧の列" /> : null}
+        <SortMenu sort={sort} columns={recordedSortColumns} label="録画済み一覧の並び替え" />
         <CollectionViewToggle value={viewMode} onChange={setViewMode} label="録画済み番組の表示形式" />
       </div>
 
@@ -672,7 +706,7 @@ export function RecordedView() {
         <>
           {viewMode === "list" ? (
             <RecordedTable
-              records={resource.data.records}
+              records={sortedRecords}
               selectable={selectMode}
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
@@ -680,7 +714,7 @@ export function RecordedView() {
             />
           ) : (
             <div className={collectionLayoutClass(viewMode, "sm:grid-cols-2 2xl:grid-cols-3")} aria-label="録画済み番組">
-              {resource.data.records.map((item) => (
+              {sortedRecords.map((item) => (
                 <RecordedCard
                   key={item.id}
                   item={item}

@@ -2,7 +2,7 @@
 
 import { CalendarSearch, ListPlus, RefreshCw, RotateCcw, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-state";
 import { CollapsibleSearchPanel } from "@/components/collapsible-search-panel";
@@ -14,6 +14,7 @@ import {
 } from "@/components/collection-view";
 import { PageHeader } from "@/components/page-header";
 import { createRuleDraftUrl } from "@/components/rules/rule-create-draft";
+import { SortMenu, sortItems, useSortState, type SortAccessors, type SortColumnDefinition } from "@/components/sortable-columns";
 import {
   DEFAULT_SEARCH_CONDITIONS,
   hasAnySearchCondition,
@@ -61,6 +62,19 @@ const searchResultTableColumns = [
   { key: "access", label: "視聴条件" },
 ] as const;
 type SearchResultTableColumn = (typeof searchResultTableColumns)[number]["key"];
+
+const searchResultSortAccessors: SortAccessors<ScheduleProgramItem, SearchResultTableColumn> = {
+  program: (program) => program.name,
+  airtime: (program) => program.startAt,
+  duration: (program) => program.endAt - program.startAt,
+  station: (program) => program.channelId,
+  genre: (program) => program.genre1 ?? -1,
+  access: (program) => program.isFree,
+};
+const sortableSearchResultColumns = Object.keys(searchResultSortAccessors) as SearchResultTableColumn[];
+const searchResultSortColumns: SortColumnDefinition<SearchResultTableColumn>[] = searchResultTableColumns.filter(
+  (column) => searchResultSortAccessors[column.key],
+);
 
 function ProgramResult({ program, viewMode }: { program: ScheduleProgramItem; viewMode: CollectionViewMode }) {
   const channelName = useChannelNames();
@@ -155,6 +169,7 @@ export function SearchView() {
   const { preferences } = usePreferences();
   const [viewMode, setViewMode] = useCollectionViewMode("search-results");
   const tableColumns = useTableColumnVisibility("search-results", searchResultTableColumns);
+  const sort = useSortState("search-results", sortableSearchResultColumns);
 
   const [broadcast, setBroadcast] = useState<BroadcastStatus | undefined>(undefined);
 
@@ -184,6 +199,10 @@ export function SearchView() {
     [request],
   );
   const resource = useApiResource(loadResults);
+  const sortedResults = useMemo(
+    () => sortItems(resource.data ?? [], sort, searchResultSortAccessors),
+    [resource.data, sort],
+  );
 
   const validationErrors = validateSearchConditions(conditions);
   const canSearch = hasAnySearchCondition(conditions) && validationErrors.length === 0;
@@ -260,14 +279,15 @@ export function SearchView() {
             <div className="flex items-center gap-3">
               <p aria-live="polite" className="text-sm text-muted-foreground">{resource.data.length} 件</p>
               {viewMode === "list" ? <TableColumnVisibilityMenu state={tableColumns} label="検索結果の列" /> : null}
+              <SortMenu sort={sort} columns={searchResultSortColumns} label="検索結果の並び替え" />
               <CollectionViewToggle value={viewMode} onChange={setViewMode} label="検索結果の表示形式" />
             </div>
           </div>
           {viewMode === "list" ? (
-            <ProgramResultsTable programs={resource.data} columns={tableColumns} />
+            <ProgramResultsTable programs={sortedResults} columns={tableColumns} />
           ) : (
             <div className={collectionLayoutClass(viewMode, "xl:grid-cols-2")}>
-              {resource.data.map((program) => <ProgramResult key={program.id} program={program} viewMode={viewMode} />)}
+              {sortedResults.map((program) => <ProgramResult key={program.id} program={program} viewMode={viewMode} />)}
             </div>
           )}
         </section>

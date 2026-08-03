@@ -2,7 +2,7 @@
 
 import { CircleDot, CircleStop, Clock3, Cpu, HardDrive, Radio, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-state";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/components/collection-view";
 import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
+import { SortMenu, sortItems, useSortState, type SortAccessors, type SortColumnDefinition } from "@/components/sortable-columns";
 import {
   TableColumnVisibilityMenu,
   type TableColumnVisibilityState,
@@ -59,6 +60,25 @@ const recordingTableColumns = [
 ] as const;
 type RecordingTableColumn = (typeof recordingTableColumns)[number]["key"];
 
+function totalFileSize(item: RecordedItem): number {
+  return item.videoFiles?.reduce((total, file) => total + file.size, 0) ?? 0;
+}
+
+function recordingSortAccessors(currentTime: number): SortAccessors<RecordedItem, RecordingTableColumn> {
+  return {
+    program: (item) => item.name,
+    station: (item) => item.channelId,
+    start: (item) => item.startAt,
+    end: (item) => item.endAt,
+    progress: (item) => calculateElapsedPercentage(item.startAt, item.endAt, currentTime),
+    size: (item) => totalFileSize(item),
+  };
+}
+const sortableRecordingColumns: RecordingTableColumn[] = ["program", "station", "start", "end", "progress", "size"];
+const recordingSortColumns: SortColumnDefinition<RecordingTableColumn>[] = recordingTableColumns.filter(
+  (column) => sortableRecordingColumns.includes(column.key),
+);
+
 /** 録画中の番組に紐づく予約。予約が引けないと設定は出せないので undefined を許す。 */
 type EncodeSetting = { reserve: ReserveItem | undefined };
 
@@ -79,7 +99,7 @@ function EncodeSummary({ reserve }: EncodeSetting) {
 function RecordingCard({ item, reserve, currentTime, viewMode, busy, onStop, onEditEncode }: { item: RecordedItem; reserve: ReserveItem | undefined; currentTime: number; viewMode: CollectionViewMode; busy: boolean; onStop: (item: RecordedItem) => void; onEditEncode: (item: RecordedItem) => void }) {
   const channelName = useChannelNames();
   const progress = calculateElapsedPercentage(item.startAt, item.endAt, currentTime);
-  const fileSize = item.videoFiles?.reduce((total, file) => total + file.size, 0) ?? 0;
+  const fileSize = totalFileSize(item);
 
   return (
     <Card className={viewMode === "list" ? "overflow-hidden rounded-lg border-red-500/20 shadow-none" : "overflow-hidden border-red-500/20"}>
@@ -173,7 +193,7 @@ function RecordingTable({
 
   const renderCell = (key: RecordingTableColumn, item: RecordedItem) => {
     const progress = calculateElapsedPercentage(item.startAt, item.endAt, currentTime);
-    const fileSize = item.videoFiles?.reduce((total, file) => total + file.size, 0) ?? 0;
+    const fileSize = totalFileSize(item);
     switch (key) {
       case "status":
         return <Badge variant="destructive"><CircleDot aria-hidden="true" className="animate-pulse" />録画中</Badge>;
@@ -265,6 +285,7 @@ export function RecordingView() {
   const { preferences } = usePreferences();
   const [viewMode, setViewMode] = useCollectionViewMode("recording");
   const tableColumns = useTableColumnVisibility("recording", recordingTableColumns);
+  const sort = useSortState("recording", sortableRecordingColumns);
   const [stopTarget, setStopTarget] = useState<RecordedItem | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [encodeTarget, setEncodeTarget] = useState<RecordedItem | null>(null);
@@ -306,6 +327,10 @@ export function RecordingView() {
     [encodeSettings.data],
   );
   const encodeTargetReserve = encodeTarget ? reserveFor(encodeTarget) : undefined;
+  const sortedRecords = useMemo(
+    () => (resource.data ? sortItems(resource.data.records, sort, recordingSortAccessors(currentTime)) : []),
+    [resource.data, sort, currentTime],
+  );
 
   useEffect(() => {
     const updateTime = () => setCurrentTime(Date.now());
@@ -385,6 +410,7 @@ export function RecordingView() {
         description="現在録画している番組と進捗を表示します。"
         actions={
           <>
+            <SortMenu sort={sort} columns={recordingSortColumns} label="録画中一覧の並び替え" />
             <CollectionViewToggle value={viewMode} onChange={setViewMode} label="録画中一覧の表示形式" />
             <Button type="button" variant="ghost" onClick={resource.revalidate} disabled={resource.isRefreshing}>
               <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
@@ -410,7 +436,7 @@ export function RecordingView() {
           </div>
           {viewMode === "list" ? (
             <RecordingTable
-              records={resource.data.records}
+              records={sortedRecords}
               reserveFor={reserveFor}
               currentTime={currentTime}
               busyId={busyId}
@@ -420,7 +446,7 @@ export function RecordingView() {
             />
           ) : (
             <div className={collectionLayoutClass(viewMode, "xl:grid-cols-2")} aria-label="録画中の番組">
-              {resource.data.records.map((item) => (
+              {sortedRecords.map((item) => (
                 <RecordingCard
                   key={item.id}
                   item={item}

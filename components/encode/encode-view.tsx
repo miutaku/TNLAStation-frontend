@@ -2,7 +2,7 @@
 
 import { CircleStop, Clock3, RefreshCw, ScrollText } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-state";
 import {
@@ -12,6 +12,7 @@ import {
   useCollectionViewMode,
 } from "@/components/collection-view";
 import { PageHeader } from "@/components/page-header";
+import { SortMenu, sortItems, useSortState, type SortAccessors, type SortColumnDefinition } from "@/components/sortable-columns";
 import {
   TableColumnVisibilityMenu,
   type TableColumnVisibilityState,
@@ -48,6 +49,17 @@ const encodeTableColumns = [
   { key: "actions", label: "操作" },
 ] as const;
 type EncodeTableColumn = (typeof encodeTableColumns)[number]["key"];
+
+const encodeSortAccessors: SortAccessors<EncodeProgramItem, EncodeTableColumn> = {
+  program: (item) => item.recorded.name,
+  mode: (item) => item.mode,
+  progress: (item) => item.percent ?? -1,
+  job: (item) => item.id,
+};
+const sortableEncodeColumns = Object.keys(encodeSortAccessors) as EncodeTableColumn[];
+const encodeSortColumns: SortColumnDefinition<EncodeTableColumn>[] = encodeTableColumns.filter(
+  (column) => sortableEncodeColumns.includes(column.key),
+);
 
 function EncodeLogView({ log }: { log?: string }) {
   const bodyRef = useRef<HTMLPreElement>(null);
@@ -171,6 +183,8 @@ export function EncodeView() {
   const [viewMode, setViewMode] = useCollectionViewMode("encode");
   const runningTableColumns = useTableColumnVisibility("encode-running", encodeTableColumns);
   const waitingTableColumns = useTableColumnVisibility("encode-waiting", encodeTableColumns);
+  const runningSort = useSortState("encode-running", sortableEncodeColumns);
+  const waitingSort = useSortState("encode-waiting", sortableEncodeColumns);
   const loadQueue = useCallback((signal: AbortSignal): Promise<EncodeInfo> => apiClient.getEncode(preferences.isHalfWidthDisplayed, signal), [preferences.isHalfWidthDisplayed]);
   const resource = useApiResource(loadQueue);
   const runningCount = resource.data?.runningItems.length ?? 0;
@@ -183,6 +197,14 @@ export function EncodeView() {
     return () => window.clearInterval(timer);
   }, [runningCount, revalidate]);
 
+  const sortedRunning = useMemo(
+    () => sortItems(resource.data?.runningItems ?? [], runningSort, encodeSortAccessors),
+    [resource.data, runningSort],
+  );
+  const sortedWaiting = useMemo(
+    () => sortItems(resource.data?.waitItems ?? [], waitingSort, encodeSortAccessors),
+    [resource.data, waitingSort],
+  );
   const allItems = [...(resource.data?.runningItems ?? []), ...(resource.data?.waitItems ?? [])];
   const logTarget = logTargetId === null ? null : allItems.find((item) => item.id === logTargetId) ?? null;
 
@@ -214,19 +236,19 @@ export function EncodeView() {
             <CollectionViewToggle value={viewMode} onChange={setViewMode} label="エンコード一覧の表示形式" />
           </div>
           <section aria-labelledby="running-encode">
-            <div className="mb-3 flex items-center justify-between gap-3"><h2 id="running-encode" className="text-lg font-bold">実行中</h2><div className="flex items-center gap-2">{viewMode === "list" ? <TableColumnVisibilityMenu state={runningTableColumns} label="実行中エンコードの列" /> : null}<Badge variant="warning">{resource.data.runningItems.length} 件</Badge></div></div>
+            <div className="mb-3 flex items-center justify-between gap-3"><h2 id="running-encode" className="text-lg font-bold">実行中</h2><div className="flex items-center gap-2"><SortMenu sort={runningSort} columns={encodeSortColumns} label="実行中エンコードの並び替え" />{viewMode === "list" ? <TableColumnVisibilityMenu state={runningTableColumns} label="実行中エンコードの列" /> : null}<Badge variant="warning">{resource.data.runningItems.length} 件</Badge></div></div>
             {resource.data.runningItems.length ? (
               viewMode === "list"
-                ? <EncodeTable items={resource.data.runningItems} running busyId={busyId} onCancel={setCancelTarget} onShowLog={setLogTargetId} columns={runningTableColumns} />
-                : <div className={collectionLayoutClass(viewMode, "xl:grid-cols-2")}>{resource.data.runningItems.map((item) => <EncodeCard key={item.id} item={item} running onCancel={() => setCancelTarget(item)} busy={busyId === item.id} onShowLog={setLogTargetId} viewMode={viewMode} />)}</div>
+                ? <EncodeTable items={sortedRunning} running busyId={busyId} onCancel={setCancelTarget} onShowLog={setLogTargetId} columns={runningTableColumns} />
+                : <div className={collectionLayoutClass(viewMode, "xl:grid-cols-2")}>{sortedRunning.map((item) => <EncodeCard key={item.id} item={item} running onCancel={() => setCancelTarget(item)} busy={busyId === item.id} onShowLog={setLogTargetId} viewMode={viewMode} />)}</div>
             ) : <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">実行中のジョブはありません。</p>}
           </section>
           <section aria-labelledby="waiting-encode">
-            <div className="mb-3 flex items-center justify-between gap-3"><h2 id="waiting-encode" className="text-lg font-bold">待機中</h2><div className="flex items-center gap-2">{viewMode === "list" ? <TableColumnVisibilityMenu state={waitingTableColumns} label="待機中エンコードの列" /> : null}<Badge variant="secondary">{resource.data.waitItems.length} 件</Badge></div></div>
+            <div className="mb-3 flex items-center justify-between gap-3"><h2 id="waiting-encode" className="text-lg font-bold">待機中</h2><div className="flex items-center gap-2"><SortMenu sort={waitingSort} columns={encodeSortColumns} label="待機中エンコードの並び替え" />{viewMode === "list" ? <TableColumnVisibilityMenu state={waitingTableColumns} label="待機中エンコードの列" /> : null}<Badge variant="secondary">{resource.data.waitItems.length} 件</Badge></div></div>
             {resource.data.waitItems.length ? (
               viewMode === "list"
-                ? <EncodeTable items={resource.data.waitItems} running={false} busyId={busyId} onCancel={setCancelTarget} onShowLog={setLogTargetId} columns={waitingTableColumns} />
-                : <div className={collectionLayoutClass(viewMode, "xl:grid-cols-2")}>{resource.data.waitItems.map((item) => <EncodeCard key={item.id} item={item} running={false} onCancel={() => setCancelTarget(item)} busy={busyId === item.id} onShowLog={setLogTargetId} viewMode={viewMode} />)}</div>
+                ? <EncodeTable items={sortedWaiting} running={false} busyId={busyId} onCancel={setCancelTarget} onShowLog={setLogTargetId} columns={waitingTableColumns} />
+                : <div className={collectionLayoutClass(viewMode, "xl:grid-cols-2")}>{sortedWaiting.map((item) => <EncodeCard key={item.id} item={item} running={false} onCancel={() => setCancelTarget(item)} busy={busyId === item.id} onShowLog={setLogTargetId} viewMode={viewMode} />)}</div>
             ) : <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">待機中のジョブはありません。</p>}
           </section>
         </div>

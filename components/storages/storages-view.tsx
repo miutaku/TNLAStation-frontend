@@ -6,7 +6,7 @@ import {
   HardDrive,
   RefreshCw,
 } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
 import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-state";
 import {
@@ -14,6 +14,7 @@ import {
   useCollectionViewMode,
 } from "@/components/collection-view";
 import { PageHeader } from "@/components/page-header";
+import { SortMenu, sortItems, useSortState, type SortAccessors, type SortColumnDefinition } from "@/components/sortable-columns";
 import {
   TableColumnVisibilityMenu,
   type TableColumnVisibilityState,
@@ -42,6 +43,22 @@ const storageTableColumns = [
   { key: "usage", label: "使用率" },
 ] as const;
 type StorageTableColumn = (typeof storageTableColumns)[number]["key"];
+
+function occupiedOf(storage: StorageItem): number {
+  return Math.max(storage.used, storage.total - storage.available, 0);
+}
+
+const storageSortAccessors: SortAccessors<StorageItem, StorageTableColumn> = {
+  destination: (storage) => storage.name,
+  total: (storage) => storage.total,
+  used: (storage) => occupiedOf(storage),
+  available: (storage) => storage.available,
+  usage: (storage) => calculatePercentage(occupiedOf(storage), storage.total),
+};
+const sortableStorageColumns = Object.keys(storageSortAccessors) as StorageTableColumn[];
+const storageSortColumns: SortColumnDefinition<StorageTableColumn>[] = storageTableColumns.filter(
+  (column) => storageSortAccessors[column.key],
+);
 
 const formatPresentation: Record<string, SegmentPresentation> = {
   "mpeg-ts": {
@@ -226,7 +243,7 @@ export function StorageDistribution({
 }
 
 function StorageCard({ storage }: { storage: StorageItem }) {
-  const occupied = Math.max(storage.used, storage.total - storage.available, 0);
+  const occupied = occupiedOf(storage);
   const usage = calculatePercentage(occupied, storage.total);
   const isCritical = usage >= 90;
   const isWarning = usage >= 75;
@@ -292,7 +309,7 @@ export function StorageTable({
   const visibleColumns = orderedColumns.filter((column) => columns?.isVisible(column.key) ?? true);
 
   const renderCell = (key: StorageTableColumn, storage: StorageItem) => {
-    const occupied = Math.max(storage.used, storage.total - storage.available, 0);
+    const occupied = occupiedOf(storage);
     const usage = calculatePercentage(occupied, storage.total);
     const isCritical = usage >= 90;
     const isWarning = usage >= 75;
@@ -370,6 +387,11 @@ export function StoragesView() {
   const resource = useApiResource(loadStorages);
   const [viewMode, setViewMode] = useCollectionViewMode("storages");
   const tableColumns = useTableColumnVisibility("storages", storageTableColumns);
+  const sort = useSortState("storages", sortableStorageColumns);
+  const sortedItems = useMemo(
+    () => (resource.data ? sortItems(resource.data.items, sort, storageSortAccessors) : []),
+    [resource.data, sort],
+  );
   const totals = resource.data?.items.reduce(
     (result, item) => ({
       total: result.total + item.total,
@@ -418,14 +440,15 @@ export function StoragesView() {
         <>
           <div className="mb-4 flex justify-end gap-2">
             {viewMode === "list" ? <TableColumnVisibilityMenu state={tableColumns} label="ストレージ一覧の列" /> : null}
+            <SortMenu sort={sort} columns={storageSortColumns} label="ストレージ一覧の並び替え" />
             <CollectionViewToggle value={viewMode} onChange={setViewMode} label="ストレージ一覧の表示形式" />
           </div>
           {viewMode === "cards" ? (
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2" aria-label="ストレージ一覧">
-              {resource.data.items.map((storage) => <StorageCard key={storage.name} storage={storage} />)}
+              {sortedItems.map((storage) => <StorageCard key={storage.name} storage={storage} />)}
             </div>
           ) : (
-            <StorageTable items={resource.data.items} columns={tableColumns} />
+            <StorageTable items={sortedItems} columns={tableColumns} />
           )}
         </>
       ) : null}

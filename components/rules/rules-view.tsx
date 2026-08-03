@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-state";
 import { CollapsibleSearchPanel } from "@/components/collapsible-search-panel";
@@ -23,6 +23,7 @@ import {
 } from "@/components/collection-view";
 import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
+import { SortMenu, sortItems, useSortState, type SortAccessors, type SortColumnDefinition } from "@/components/sortable-columns";
 import {
   TableColumnVisibilityMenu,
   type TableColumnVisibilityState,
@@ -78,6 +79,22 @@ function ruleDestination(rule: Rule): string {
     rule.saveOption?.directory,
   ].filter(Boolean).join("/") || "既定の保存先";
 }
+
+function ruleStatusRank(rule: Rule): number {
+  return rule.reserveOption.enable ? 0 : 1;
+}
+
+const ruleSortAccessors: SortAccessors<Rule, RuleTableColumn> = {
+  status: (rule) => ruleStatusRank(rule),
+  rule: (rule) => ruleTitle(rule),
+  conditions: (rule) => ruleBroadcasts(rule),
+  destination: (rule) => ruleDestination(rule),
+  reserves: (rule) => rule.reservesCnt ?? 0,
+};
+const sortableRuleColumns = Object.keys(ruleSortAccessors) as RuleTableColumn[];
+const ruleSortColumns: SortColumnDefinition<RuleTableColumn>[] = ruleTableColumns.filter(
+  (column) => ruleSortAccessors[column.key],
+);
 
 function RuleStatus({ rule }: { rule: Rule }) {
   return (
@@ -342,6 +359,7 @@ export function RulesView() {
   const [disableTarget, setDisableTarget] = useState<Rule | null>(null);
   const [viewMode, setViewMode] = useCollectionViewMode("rules");
   const tableColumns = useTableColumnVisibility("rules", ruleTableColumns);
+  const sort = useSortState("rules", sortableRuleColumns);
 
   const loadRules = useCallback(
     (signal: AbortSignal): Promise<Rules> => apiClient.getRules(
@@ -356,6 +374,10 @@ export function RulesView() {
     [keyword, page],
   );
   const resource = useApiResource(loadRules);
+  const sortedRules = useMemo(
+    () => (resource.data ? sortItems(resource.data.rules, sort, ruleSortAccessors) : []),
+    [resource.data, sort],
+  );
 
   const searchRules = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -457,6 +479,7 @@ export function RulesView() {
 
       <div className="mb-4 flex justify-end gap-2">
         {viewMode === "list" ? <TableColumnVisibilityMenu state={tableColumns} label="録画ルール一覧の列" /> : null}
+        <SortMenu sort={sort} columns={ruleSortColumns} label="録画ルール一覧の並び替え" />
         <CollectionViewToggle
           value={viewMode}
           onChange={setViewMode}
@@ -489,7 +512,7 @@ export function RulesView() {
         <>
           {viewMode === "cards" ? (
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2" aria-label="録画ルール">
-              {resource.data.rules.map((rule) => (
+              {sortedRules.map((rule) => (
                 <RuleCard
                   key={rule.id}
                   rule={rule}
@@ -501,7 +524,7 @@ export function RulesView() {
             </div>
           ) : (
             <RuleTable
-              rules={resource.data.rules}
+              rules={sortedRules}
               busyRuleId={busyRuleId}
               onToggle={toggleRule}
               onDelete={setDeleteTarget}

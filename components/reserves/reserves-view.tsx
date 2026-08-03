@@ -13,6 +13,7 @@ import {
 } from "@/components/collection-view";
 import { PageHeader } from "@/components/page-header";
 import { Pagination } from "@/components/pagination";
+import { SortMenu, sortItems, useSortState, type SortAccessors, type SortColumnDefinition } from "@/components/sortable-columns";
 import {
   EMPTY_PROGRAM_COLLECTION_SEARCH,
   ProgramCollectionSearch,
@@ -65,6 +66,21 @@ const reserveTableColumns = [
   { key: "actions", label: "操作" },
 ] as const;
 type ReserveTableColumn = (typeof reserveTableColumns)[number]["key"];
+
+const reserveSortAccessors: SortAccessors<ReserveItem, ReserveTableColumn> = {
+  status: (reserve) => (reserve.isSkip ? 3 : reserve.isOverlap ? 2 : reserve.isConflict ? 1 : 0),
+  program: (reserve) => reserve.name,
+  airtime: (reserve) => reserve.startAt,
+  station: (reserve) => reserve.channelId,
+  genre: (reserve) => reserve.genre1 ?? -1,
+  method: (reserve) => reserve.ruleId ?? -1,
+  destination: (reserve) => [reserve.parentDirectoryName, reserve.directory].filter(Boolean).join("/"),
+  id: (reserve) => reserve.id,
+};
+const sortableReserveColumns = Object.keys(reserveSortAccessors) as ReserveTableColumn[];
+const reserveSortColumns: SortColumnDefinition<ReserveTableColumn>[] = reserveTableColumns.filter(
+  (column) => reserveSortAccessors[column.key],
+);
 
 // EPGStation の予約項目にルール名は含まれない (api.d.ts / ReserveApiModel のどちらにも無い)。
 // 互換面に無い鍵を足さないため、ここは予約に載っている ruleId だけで表示を決める。
@@ -264,6 +280,7 @@ export function ReservesView() {
   const { preferences } = usePreferences();
   const [viewMode, setViewMode] = useCollectionViewMode("reserves");
   const tableColumns = useTableColumnVisibility("reserves", reserveTableColumns);
+  const sort = useSortState("reserves", sortableReserveColumns);
   const searchQuery = useMemo(() => toProgramCollectionQuery(search), [search]);
   const loadSearchOptions = useCallback(
     async (signal: AbortSignal): Promise<{ channels: ChannelItem[]; rules: Rule[]; config: Config }> => {
@@ -311,6 +328,10 @@ export function ReservesView() {
   };
 
   const hasSearch = hasProgramCollectionQuery(search);
+  const sortedReserves = useMemo(
+    () => (resource.data ? sortItems(resource.data.reserves, sort, reserveSortAccessors) : []),
+    [resource.data, sort],
+  );
 
   const deleteReserve = async () => {
     if (!deleteTarget) return;
@@ -378,6 +399,7 @@ export function ReservesView() {
             </p>
           ) : null}
           {viewMode === "list" ? <TableColumnVisibilityMenu state={tableColumns} label="予約一覧の列" /> : null}
+          <SortMenu sort={sort} columns={reserveSortColumns} label="予約一覧の並び替え" />
           <CollectionViewToggle value={viewMode} onChange={setViewMode} label="予約一覧の表示形式" />
         </div>
       </div>
@@ -407,10 +429,10 @@ export function ReservesView() {
             </div>
           ) : null}
           {viewMode === "list" ? (
-            <ReserveTable reserves={resource.data.reserves} columns={tableColumns} onDelete={setDeleteTarget} />
+            <ReserveTable reserves={sortedReserves} columns={tableColumns} onDelete={setDeleteTarget} />
           ) : (
             <div className={collectionLayoutClass(viewMode, "xl:grid-cols-2")} aria-label="予約番組">
-              {resource.data.reserves.map((reserve) => <ReserveCard key={reserve.id} reserve={reserve} viewMode={viewMode} onDelete={setDeleteTarget} />)}
+              {sortedReserves.map((reserve) => <ReserveCard key={reserve.id} reserve={reserve} viewMode={viewMode} onDelete={setDeleteTarget} />)}
             </div>
           )}
           <Pagination page={page} pageSize={preferences.reservesLength} total={resource.data.total} onPageChange={setPage} />
