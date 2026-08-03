@@ -158,15 +158,28 @@ function ProgramResultsTable({
 
 export function SearchView() {
   const router = useRouter();
+  const { preferences } = usePreferences();
   // 番組表などから ?keyword= 付きで来たときは、その語を初期条件に入れておく。
   const [conditions, setConditions] = useState<SearchConditions>(() => {
     const keyword = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("keyword");
     return keyword ? { ...DEFAULT_SEARCH_CONDITIONS, keyword } : DEFAULT_SEARCH_CONDITIONS;
   });
   const [channels, setChannels] = useState<ChannelItem[]>([]);
-  const [request, setRequest] = useState<SearchRequest | null>(null);
   const requestId = useRef(0);
-  const { preferences } = usePreferences();
+  // 「この番組を検索」のようなリンクは、遷移した時点で結果が出ていることを期待している。
+  // ?keyword= 由来の条件をフォームへ入れるだけでなく、ここで検索も実行しておく。
+  const [request, setRequest] = useState<SearchRequest | null>(() => {
+    if (!hasAnySearchCondition(conditions) || validateSearchConditions(conditions).length > 0) return null;
+    // requestId.current はまだ 0 のまま (増分は submit だけが行う)。最初の1件はこれと同じ 0 を使う。
+    return {
+      id: 0,
+      options: {
+        option: searchConditionsToOption(conditions),
+        isHalfWidth: preferences.isHalfWidthDisplayed,
+        limit: 300,
+      },
+    };
+  });
   const [viewMode, setViewMode] = useCollectionViewMode("search-results");
   const tableColumns = useTableColumnVisibility("search-results", searchResultTableColumns);
   const sort = useSortState("search-results", sortableSearchResultColumns);
