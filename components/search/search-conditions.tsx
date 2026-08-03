@@ -85,6 +85,12 @@ export function validateSearchConditions(conditions: SearchConditions): string[]
   if (conditions.keyRegExp && conditions.keyword.trim()) {
     try {
       new RegExp(conditions.keyword);
+      if (hasNestedUnboundedQuantifier(conditions.keyword)) {
+        errors.push(
+          "検索キーワードの正規表現に、入れ子になった繰り返し (例: (a+)+) が含まれています。" +
+          "一致に多くの時間がかかる場合があるため、パターンを見直すことをおすすめします。",
+        );
+      }
     } catch {
       errors.push("検索キーワードの正規表現が正しくありません。");
     }
@@ -107,6 +113,86 @@ export function validateSearchConditions(conditions: SearchConditions): string[]
     errors.push("放送期間の終了は開始より後にしてください。");
   }
   return errors;
+}
+
+/**
+ * 入れ子になった無制限の繰り返し ((a+)+ のような形) を静的に検出する。破局的バックトラッキング
+ * (ReDoS) の典型形だけを狙った簡易ヒューリスティックで、曖昧な選択肢の重なり (例: (a|aa)+) の
+ * ような他の形は検出できない。サーバー側の一致にもタイムアウトはあるが、事前に弾いたほうが
+ * 利用者にも分かりやすいので、それとは別に軽く防いでおく。
+ */
+export function hasNestedUnboundedQuantifier(pattern: string): boolean {
+  const stack: { hasUnboundedRepeat: boolean }[] = [{ hasUnboundedRepeat: false }];
+  let i = 0;
+
+  while (i < pattern.length) {
+    const char = pattern[i];
+
+    if (char === "\\") {
+      i += 2;
+    } else if (char === "[") {
+      i = skipCharacterClass(pattern, i);
+    } else if (char === "(") {
+      stack.push({ hasUnboundedRepeat: false });
+      i += 1;
+      continue;
+    } else if (char === ")") {
+      const closed = stack.pop() ?? { hasUnboundedRepeat: false };
+      i += 1;
+      if (isUnboundedQuantifierAt(pattern, i)) {
+        if (closed.hasUnboundedRepeat) return true;
+        markQuantifiedAtomIn(stack);
+        i = skipQuantifier(pattern, i);
+      }
+      continue;
+    } else {
+      i += 1;
+    }
+
+    if (isUnboundedQuantifierAt(pattern, i)) {
+      markQuantifiedAtomIn(stack);
+      i = skipQuantifier(pattern, i);
+    }
+  }
+
+  return false;
+}
+
+function markQuantifiedAtomIn(stack: { hasUnboundedRepeat: boolean }[]): void {
+  const top = stack[stack.length - 1];
+  if (top) top.hasUnboundedRepeat = true;
+}
+
+/** `*` `+` `{m,}` (上限なし) だけを対象にする。`?` や `{m,n}` は指数的な爆発の原因にならない。 */
+function isUnboundedQuantifierAt(pattern: string, index: number): boolean {
+  const char = pattern[index];
+  if (char === "*" || char === "+") return true;
+  if (char !== "{") return false;
+
+  const match = /^\{\d+(,(\d*))?\}/.exec(pattern.slice(index));
+  if (!match) return false;
+  return match[1] !== undefined && match[2] === "";
+}
+
+function skipQuantifier(pattern: string, index: number): number {
+  let next = index + 1;
+  if (pattern[index] === "{") {
+    const match = /^\{\d+(,\d*)?\}/.exec(pattern.slice(index));
+    next = index + (match ? match[0].length : 1);
+  }
+  if (pattern[next] === "?") next += 1;
+  return next;
+}
+
+/** 文字クラス `[...]` の中身は繰り返しの入れ子とは無関係なので、丸ごと読み飛ばす。 */
+function skipCharacterClass(pattern: string, index: number): number {
+  let i = index + 1;
+  if (pattern[i] === "^") i += 1;
+  if (pattern[i] === "]") i += 1;
+  while (i < pattern.length && pattern[i] !== "]") {
+    i += pattern[i] === "\\" ? 2 : 1;
+  }
+  return i + 1;
 }
 
 function toWeekBitmask(weekdays: boolean[]): number {
