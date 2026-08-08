@@ -88,5 +88,15 @@ describe("guideYForMinute", () => {
     expect(source).toContain('"sticky left-0 z-30 w-14 shrink-0');
     expect(source).toContain("拡大を解除");
     expect(source).toContain('aria-label="時間帯ごとの拡大をすべて解除"');
+    expect(source).toContain("<ArrowUpDown");
+    expect(source).toContain("size-8");
+    expect(source).toContain("GUIDE_HOUR_ZOOM_LEVELS = [1, 2, 4, 8, 16]");
+  });
+
+  it("provides enough zoom for two-minute programs to show their title", () => {
+    const top = guideYForMinute(50, 3, { 0: 8 });
+    const bottom = guideYForMinute(52, 3, { 0: 8 });
+
+    expect(bottom - top).toBe(48);
   });
 });
