@@ -104,6 +104,7 @@ export interface Reserves {
 export interface ReserveItem {
   id: ReserveId;
   ruleId?: RuleId;
+  ruleName?: string;
   isSkip: boolean;
   isConflict: boolean;
   isOverlap: boolean;
