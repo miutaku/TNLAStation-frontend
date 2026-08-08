@@ -96,7 +96,8 @@ describe("guideYForMinute", () => {
   it("groups mobile filters and display controls below the title", () => {
     const source = readFileSync(new URL("./guide-view.tsx", import.meta.url), "utf8");
 
-    expect(source).toContain('className="mb-2 text-[2rem] leading-[1.1] font-bold tracking-tight lg:hidden"');
+    expect(source).toContain('className="mb-2 flex items-center gap-2 text-[2rem] leading-[1.1] font-bold tracking-tight lg:hidden"');
+    expect(source).toContain('<PageInfoButton title="番組表"');
     expect(source).toContain("function GuideToolbar(");
     expect(source).toContain('className="mb-2 lg:hidden"');
     expect(source).toContain('role="group" aria-label="放送波"');

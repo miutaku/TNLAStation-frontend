@@ -8,7 +8,7 @@ import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-stat
 import { ChannelLogo } from "@/components/channel-logo";
 import { ProgramReserveDialog } from "@/components/guide/program-reserve-dialog";
 import { WatchNowDialog } from "@/components/onair/watch-now-dialog";
-import { PageHeader } from "@/components/page-header";
+import { PageHeader, PageInfoButton } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { AnchoredMenu } from "@/components/ui/anchored-menu";
 import { Button } from "@/components/ui/button";
@@ -837,7 +837,10 @@ export function GuideView() {
   return (
     <div ref={pageRef} className="flex min-h-0 flex-1 flex-col bg-background">
       <div className={cn("shrink-0 px-4 pt-3 sm:px-6 lg:px-6 lg:pt-6", isFullscreenView && "hidden")}>
-        <h1 className="mb-2 text-[2rem] leading-[1.1] font-bold tracking-tight lg:hidden">番組表</h1>
+        <h1 className="mb-2 flex items-center gap-2 text-[2rem] leading-[1.1] font-bold tracking-tight lg:hidden">
+          <span>番組表</span>
+          <PageInfoButton title="番組表" description="チャンネルを横に、放送予定を時刻順に表示します。日付と放送波を選んで絞り込めます。" />
+        </h1>
         {/* モバイルの条件と操作は、見出しの次の行にある 1 つのボタンエリアへまとめる。 */}
         <GuideToolbar
           className="mb-2 lg:hidden"

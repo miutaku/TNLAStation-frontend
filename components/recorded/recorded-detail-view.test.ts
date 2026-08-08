@@ -47,9 +47,9 @@ describe("recorded detail layout", () => {
       }),
     );
 
-    // 長いタイトルでも操作が押し出されない。順序はタイトル → 説明 → 操作。
-    expect(header.indexOf("<h1")).toBeLessThan(header.indexOf("<p"));
-    expect(header.indexOf("<p")).toBeLessThan(header.indexOf("<button"));
+    // 長いタイトルでも操作が押し出されない。順序はタイトル → 説明ボタン → 操作。
+    expect(header.indexOf("<h1")).toBeLessThan(header.indexOf("の説明を表示"));
+    expect(header.indexOf("の説明を表示")).toBeLessThan(header.indexOf("保護"));
     expect(header).toContain("min-w-0");
     expect(header).toContain("flex-wrap");
   });

@@ -57,8 +57,8 @@ describe("intrinsic width guards", () => {
 });
 
 describe("PageHeader の操作の位置", () => {
-  /** どのページでも同じ位置に出るよう、3 つの枠をまとめて説明の下へ並べる。 */
-  it("puts every kind of action under the title and description", () => {
+  /** どのページでも同じ位置に出るよう、説明ボタンの後へ 3 つの操作枠をまとめる。 */
+  it("puts every kind of action after the title and its information button", () => {
     const markup = renderToStaticMarkup(
       createElement(PageHeader, {
         title: "録画済み",
@@ -69,8 +69,8 @@ describe("PageHeader の操作の位置", () => {
       }),
     );
 
-    expect(markup.indexOf("<h1")).toBeLessThan(markup.indexOf("<p"));
-    expect(markup.indexOf("<p")).toBeLessThan(markup.indexOf("主操作"));
+    expect(markup.indexOf("<h1")).toBeLessThan(markup.indexOf("録画済みの説明を表示"));
+    expect(markup.indexOf("録画済みの説明を表示")).toBeLessThan(markup.indexOf("主操作"));
     expect(markup.indexOf("主操作")).toBeLessThan(markup.indexOf("副操作"));
     expect(markup.indexOf("副操作")).toBeLessThan(markup.indexOf("戻る"));
   });
@@ -78,6 +78,7 @@ describe("PageHeader の操作の位置", () => {
   it("leaves no empty row when a page has no actions", () => {
     const markup = renderToStaticMarkup(createElement(PageHeader, { title: "ホーム", description: "説明" }));
 
-    expect(markup).not.toContain("<div");
+    expect(markup).not.toContain("主操作");
+    expect(markup).toContain("ホームの説明を表示");
   });
 });
