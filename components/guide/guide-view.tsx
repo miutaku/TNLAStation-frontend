@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Maximize2, Minus, Minimize2, Plus, Radio, RefreshCw, RotateCcw, Settings } from "lucide-react";
+import { ArrowUpDown, CalendarDays, Maximize2, Minus, Minimize2, Plus, Radio, RefreshCw, RotateCcw, Settings } from "lucide-react";
 import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
@@ -26,8 +26,7 @@ type BroadcastFilter = "ALL" | ChannelType;
 
 const BROADCAST_TYPE_LABELS: Record<ChannelType, string> = { GR: "地デジ", BS: "BS", CS: "CS", SKY: "SKY" };
 const BROADCAST_TYPE_ORDER: readonly ChannelType[] = ["GR", "BS", "CS", "SKY"];
-const GUIDE_HOUR_ZOOM_MIN = 1;
-const GUIDE_HOUR_ZOOM_MAX = 4;
+const GUIDE_HOUR_ZOOM_LEVELS = [1, 2, 4, 8, 16] as const;
 type GuideHourZooms = Readonly<Record<number, number>>;
 
 export function guideYForMinute(minute: number, pixelsPerMinute: number, hourZooms: GuideHourZooms): number {
@@ -250,6 +249,11 @@ function TimeAxis({
   const [selectedHour, setSelectedHour] = useState<number | null>(null);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const selectedZoom = selectedHour === null ? 1 : hourZooms[selectedHour] ?? 1;
+  const selectedZoomIndex = GUIDE_HOUR_ZOOM_LEVELS.indexOf(
+    selectedZoom as (typeof GUIDE_HOUR_ZOOM_LEVELS)[number],
+  );
+  const previousZoom = GUIDE_HOUR_ZOOM_LEVELS[Math.max(0, selectedZoomIndex - 1)];
+  const nextZoom = GUIDE_HOUR_ZOOM_LEVELS[Math.min(GUIDE_HOUR_ZOOM_LEVELS.length - 1, selectedZoomIndex + 1)];
 
   const openZoom = (hour: number, element: HTMLElement) => {
     setSelectedHour(hour);
@@ -261,17 +265,23 @@ function TimeAxis({
       <div className="glass-header sticky top-0 z-10 h-[var(--guide-header-height,3.5rem)] rounded-none border-x-0 border-t-0" />
       <div className="relative" style={{ height: `${guideYForMinute(windowMinutes, pixelsPerMinute, hourZooms)}px` }}>
         {Array.from({ length: Math.ceil(windowMinutes / 60) }, (_, hour) => (
-          <button
-            type="button"
+          <div
             key={hour}
-            className="absolute inset-x-0 border-t border-border/60 pt-1 text-center text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+            className="absolute inset-x-0 border-t border-border/60 pt-1 text-center text-xs font-medium text-muted-foreground"
             style={{ top: `${guideYForMinute(hour * 60, pixelsPerMinute, hourZooms)}px` }}
-            aria-label={`${formatTime(windowStart + hour * 3_600_000)}の時間帯を拡大`}
-            onClick={(event) => openZoom(hour, event.currentTarget)}
           >
             <span className="block">{formatTime(windowStart + hour * 3_600_000)}</span>
-            {(hourZooms[hour] ?? 1) > 1 ? <span className="block text-[0.65rem] font-bold text-primary">{hourZooms[hour]}x</span> : null}
-          </button>
+            <button
+              type="button"
+              className="mx-auto mt-1 flex size-8 flex-col items-center justify-center rounded-md border bg-background text-[0.55rem] leading-none shadow-sm transition-colors hover:bg-muted hover:text-foreground"
+              aria-label={`${formatTime(windowStart + hour * 3_600_000)}の時間帯を拡大・縮小`}
+              onClick={(event) => openZoom(hour, event.currentTarget)}
+            >
+              <ArrowUpDown aria-hidden="true" className="size-3.5" />
+              <span>拡大</span>
+            </button>
+            {(hourZooms[hour] ?? 1) > 1 ? <span className="mt-1 block text-[0.65rem] font-bold text-primary">{hourZooms[hour]}x</span> : null}
+          </div>
         ))}
       </div>
       <AnchoredMenu
@@ -289,9 +299,9 @@ function TimeAxis({
             type="button"
             size="icon"
             variant="outline"
-            disabled={selectedHour === null || selectedZoom <= GUIDE_HOUR_ZOOM_MIN}
+            disabled={selectedHour === null || selectedZoomIndex <= 0}
             aria-label="この時間帯を縮小"
-            onClick={() => selectedHour !== null && onChangeZoom(selectedHour, selectedZoom - 1)}
+            onClick={() => selectedHour !== null && onChangeZoom(selectedHour, previousZoom)}
           >
             <Minus aria-hidden="true" />
           </Button>
@@ -300,9 +310,9 @@ function TimeAxis({
             type="button"
             size="icon"
             variant="outline"
-            disabled={selectedHour === null || selectedZoom >= GUIDE_HOUR_ZOOM_MAX}
+            disabled={selectedHour === null || selectedZoomIndex >= GUIDE_HOUR_ZOOM_LEVELS.length - 1}
             aria-label="この時間帯を拡大"
-            onClick={() => selectedHour !== null && onChangeZoom(selectedHour, selectedZoom + 1)}
+            onClick={() => selectedHour !== null && onChangeZoom(selectedHour, nextZoom)}
           >
             <Plus aria-hidden="true" />
           </Button>
