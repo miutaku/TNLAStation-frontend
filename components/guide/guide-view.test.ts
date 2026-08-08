@@ -33,6 +33,15 @@ describe("guide layout", () => {
     expect(source).toContain('"line-clamp-2 font-semibold [overflow-wrap:anywhere]"');
     expect(source).not.toContain('"truncate font-semibold"');
   });
+
+  it("shows the program name before its start time", () => {
+    const source = readFileSync(new URL("./guide-view.tsx", import.meta.url), "utf8");
+    const programName = source.indexOf('<h3 className="text-sm leading-5 font-semibold">{program.name}</h3>');
+    const startTime = source.indexOf('<time dateTime={new Date(program.startAt).toISOString()}>');
+
+    expect(programName).toBeGreaterThan(-1);
+    expect(startTime).toBeGreaterThan(programName);
+  });
 });
 
 describe("openingMinutesFor", () => {

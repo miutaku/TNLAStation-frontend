@@ -166,16 +166,16 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
                     : "hover:shadow-md hover:brightness-105",
                 )}
                 style={{ top: `${offsetMinutes * pixelsPerMinute}px`, height: `${height}px` }}
-                aria-label={`${formatTime(program.startAt)} ${program.name}${finished ? " (放送終了)" : " の録画予約メニュー"}`}
+                aria-label={`${program.name} ${formatTime(program.startAt)}${finished ? " (放送終了)" : " の録画予約メニュー"}`}
                 onClick={() => onSelectProgram(program, schedule.channel.name)}
               >
+                <h3 className="text-sm leading-5 font-semibold">{program.name}</h3>
                 <div className="flex items-center gap-1.5 text-[0.7rem] leading-4 font-medium text-muted-foreground">
                   <time dateTime={new Date(program.startAt).toISOString()}>{formatTime(program.startAt)}</time>
                   <span>({formatDuration(program.startAt, program.endAt)})</span>
                   {!program.isFree ? <Badge variant="outline">有料</Badge> : null}
                   {reserved ? <Badge variant="destructive">予約</Badge> : null}
                 </div>
-                <h3 className="mt-0.5 text-sm leading-5 font-semibold">{program.name}</h3>
                 {/* 短い番組に説明を入れると番組名が隠れるため、入る高さのときだけ出す。 */}
                 {program.description && height >= 108 ? (
                   <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">{program.description}</p>
