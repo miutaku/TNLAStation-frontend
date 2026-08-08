@@ -360,6 +360,115 @@ export const GUIDE_COLUMN_WIDTH_DESKTOP = 140;
 const TIME_AXIS_WIDTH = 56;
 const SEQUENTIAL_BATCH = 6;
 
+function GuideToolbar({
+  className,
+  date,
+  dateOptions,
+  broadcast,
+  filters,
+  hasActiveHourZooms,
+  isRefreshing,
+  isFullscreenView,
+  showDesktopLabels = false,
+  onChangeDate,
+  onChangeBroadcast,
+  onResetZooms,
+  onRefresh,
+  onToggleFullscreen,
+}: {
+  className?: string;
+  date: string;
+  dateOptions: readonly { value: string; label: string }[];
+  broadcast: BroadcastFilter;
+  filters: readonly { value: BroadcastFilter; label: string }[];
+  hasActiveHourZooms: boolean;
+  isRefreshing: boolean;
+  isFullscreenView: boolean;
+  showDesktopLabels?: boolean;
+  onChangeDate: (date: string) => void;
+  onChangeBroadcast: (broadcast: BroadcastFilter) => void;
+  onResetZooms: () => void;
+  onRefresh: () => void;
+  onToggleFullscreen: () => void;
+}) {
+  return (
+    <div
+      role="toolbar"
+      aria-label="番組表の操作"
+      className={cn(
+        "glass-panel flex w-fit max-w-full gap-1 overflow-x-auto rounded-xl p-2 shadow-sm",
+        showDesktopLabels ? "items-end" : "items-center",
+        className,
+      )}
+    >
+      <div className={cn("flex shrink-0 items-center gap-2", showDesktopLabels && "flex-col items-stretch gap-1")}>
+        {showDesktopLabels ? (
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <CalendarDays aria-hidden="true" className="size-4 text-primary" />
+            放送日
+          </span>
+        ) : null}
+        <select
+          aria-label="放送日"
+          value={date}
+          onChange={(event) => onChangeDate(event.target.value)}
+          className={cn("w-auto shrink-0 rounded-lg border border-input bg-background/75 px-2 text-sm shadow-xs", showDesktopLabels ? "h-10" : "h-9")}
+        >
+          {dateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </div>
+      <div className={cn("flex shrink-0 items-center gap-2", showDesktopLabels && "flex-col items-stretch gap-1")}>
+        {showDesktopLabels ? (
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <Radio aria-hidden="true" className="size-4 text-primary" />
+            放送波
+          </span>
+        ) : null}
+        <div role="group" aria-label="放送波" className="flex gap-1 rounded-lg bg-muted p-1">
+          {filters.map((filter) => (
+            <Button
+              key={filter.value}
+              type="button"
+              size="sm"
+              variant={broadcast === filter.value ? "default" : "ghost"}
+              aria-pressed={broadcast === filter.value}
+              onClick={() => onChangeBroadcast(filter.value)}
+            >
+              {filter.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+      <Button asChild variant="ghost" size="icon" className={showDesktopLabels ? "h-10 lg:w-auto lg:px-4" : undefined}>
+        <Link href="/guide/setting" aria-label="番組表設定">
+          <Settings aria-hidden="true" />
+          {showDesktopLabels ? <span className="hidden lg:inline">番組表設定</span> : null}
+        </Link>
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant={hasActiveHourZooms ? "default" : "outline"}
+        className={cn("flex-col gap-0 text-[0.6rem] leading-none", showDesktopLabels && "h-10 lg:w-auto lg:flex-row lg:gap-2 lg:px-4 lg:text-sm")}
+        aria-label={hasActiveHourZooms ? "有効な時間帯の拡大をすべて解除" : "時間帯の拡大はありません"}
+        disabled={!hasActiveHourZooms}
+        onClick={onResetZooms}
+      >
+        <ArrowUpDown aria-hidden="true" />
+        <span>拡大</span>
+      </Button>
+      <Button type="button" variant="ghost" size="icon" className={showDesktopLabels ? "h-10 lg:w-auto lg:px-4" : undefined} aria-label="更新" onClick={onRefresh} disabled={isRefreshing}>
+        <RefreshCw aria-hidden="true" className={isRefreshing ? "animate-spin" : undefined} />
+        {showDesktopLabels ? <span className="hidden lg:inline">更新</span> : null}
+      </Button>
+      <Button type="button" variant="ghost" size="icon" className={showDesktopLabels ? "h-10 lg:w-auto lg:px-4" : undefined} aria-label={isFullscreenView ? "全画面表示を終了" : "全画面表示"} onClick={onToggleFullscreen}>
+        {isFullscreenView ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+        {showDesktopLabels ? <span className="hidden lg:inline">{isFullscreenView ? "全画面表示を終了" : "全画面表示"}</span> : null}
+      </Button>
+    </div>
+  );
+}
+
 /**
  * 番組表の本体。描画のしかたを設定に合わせて変える。
  * all: 全列を一度に。sequential: 手前から数フレームで。minimal: 見えている列だけ。
@@ -377,6 +486,7 @@ function GuideGrid({
   pixelsPerMinute,
   reservedIds,
   openingMinutes,
+  isFullscreenView,
   hourZooms,
   onChangeHourZoom,
   onSelectProgram,
@@ -395,6 +505,7 @@ function GuideGrid({
   reservedIds: ReadonlySet<number>;
   /** 開いたときに送る位置 (窓の先頭からの分)。 */
   openingMinutes: number;
+  isFullscreenView: boolean;
   hourZooms: GuideHourZooms;
   onChangeHourZoom: (hour: number, zoom: number) => void;
   onSelectProgram: (program: ScheduleProgramItem, channelName: string) => void;
@@ -438,6 +549,17 @@ function GuideGrid({
     frame = requestAnimationFrame(settle);
     return () => cancelAnimationFrame(frame);
   }, [hourZooms, openingMinutes, pixelsPerMinute, schedules]);
+
+  const wasFullscreen = useRef(isFullscreenView);
+  useEffect(() => {
+    const element = scrollRef.current;
+    const enteredFullscreen = isFullscreenView && !wasFullscreen.current;
+    wasFullscreen.current = isFullscreenView;
+    if (!enteredFullscreen || element === null) return;
+
+    // 全画面ツールバーの直下へ現在時刻線を逃がす。上へ戻せない深夜帯は 0 で止める。
+    element.scrollTop = Math.max(0, element.scrollTop - 72);
+  }, [isFullscreenView]);
 
   useEffect(() => {
     if (drawMode !== "sequential" || sequentialCount >= schedules.length) return;
@@ -699,6 +821,7 @@ export function GuideView() {
             pixelsPerMinute={preferences.guidePixelsPerMinute}
             reservedIds={reservedIds}
             openingMinutes={openingMinutes}
+            isFullscreenView={isFullscreenView}
             hourZooms={hourZooms}
             onChangeHourZoom={changeHourZoom}
             onSelectProgram={selectProgram}
@@ -713,65 +836,24 @@ export function GuideView() {
   // h-full ではなく flex-1 だけで高さをつなぐ (h-full は親の高さ確定に依存し崩れやすい)。
   return (
     <div ref={pageRef} className="flex min-h-0 flex-1 flex-col bg-background">
-      <div className={cn("shrink-0 px-3 pt-3 sm:px-4 lg:px-6 lg:pt-6", isFullscreenView && "hidden")}>
+      <div className={cn("shrink-0 px-4 pt-3 sm:px-6 lg:px-6 lg:pt-6", isFullscreenView && "hidden")}>
         <h1 className="mb-2 text-[2rem] leading-[1.1] font-bold tracking-tight lg:hidden">番組表</h1>
         {/* モバイルの条件と操作は、見出しの次の行にある 1 つのボタンエリアへまとめる。 */}
-        <div className="glass-panel mb-2 flex flex-nowrap items-center gap-1 overflow-x-auto rounded-xl p-2 shadow-sm lg:hidden">
-          <select
-            id="guide-date"
-            aria-label="放送日"
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-            className="h-9 w-auto shrink-0 rounded-lg border border-input bg-background/75 px-2 text-sm shadow-xs"
-          >
-            {dateOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-          <div role="group" aria-label="放送波" className="flex shrink-0 gap-1 rounded-lg bg-muted p-1">
-            {filters.map((filter) => (
-              <Button
-                key={filter.value}
-                type="button"
-                size="sm"
-                variant={broadcast === filter.value ? "default" : "ghost"}
-                aria-pressed={broadcast === filter.value}
-                onClick={() => setBroadcast(filter.value)}
-              >
-                {filter.label}
-              </Button>
-            ))}
-          </div>
-          <Button asChild variant="ghost" size="icon">
-            <Link href="/guide/setting" aria-label="番組表設定">
-              <Settings aria-hidden="true" />
-            </Link>
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant={hasActiveHourZooms ? "default" : "outline"}
-            className="flex-col gap-0 text-[0.6rem] leading-none"
-            aria-label={hasActiveHourZooms ? "有効な時間帯の拡大をすべて解除" : "時間帯の拡大はありません"}
-            disabled={!hasActiveHourZooms}
-            onClick={() => setShowResetZoomsDialog(true)}
-          >
-            <ArrowUpDown aria-hidden="true" />
-            <span>拡大</span>
-          </Button>
-          <Button type="button" variant="ghost" size="icon" aria-label="更新" onClick={resource.revalidate} disabled={resource.isRefreshing}>
-            <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={isFullscreenView ? "全画面表示を終了" : "全画面表示"}
-            onClick={requestFullscreen}
-          >
-            {isFullscreenView ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
-          </Button>
-        </div>
+        <GuideToolbar
+          className="mb-2 lg:hidden"
+          date={date}
+          dateOptions={dateOptions}
+          broadcast={broadcast}
+          filters={filters}
+          hasActiveHourZooms={hasActiveHourZooms}
+          isRefreshing={resource.isRefreshing}
+          isFullscreenView={isFullscreenView}
+          onChangeDate={setDate}
+          onChangeBroadcast={setBroadcast}
+          onResetZooms={() => setShowResetZoomsDialog(true)}
+          onRefresh={resource.revalidate}
+          onToggleFullscreen={requestFullscreen}
+        />
 
         <div className="hidden lg:block">
           <PageHeader
@@ -780,63 +862,22 @@ export function GuideView() {
             description="チャンネルを横に、放送予定を時刻順に表示します。日付と放送波を選んで絞り込めます。"
           />
 
-          <div className="mb-5 flex flex-wrap items-end gap-4 glass-panel rounded-2xl p-4 shadow-sm">
-            <div className="w-full sm:max-w-52">
-              <label htmlFor="guide-date-desktop" className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                <CalendarDays aria-hidden="true" className="size-4 text-primary" />
-                放送日
-              </label>
-              <select
-                id="guide-date-desktop"
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-                className="h-10 min-w-0 w-full max-w-full rounded-lg border border-input bg-background/75 px-3 text-sm shadow-xs"
-              >
-                {dateOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </div>
-            <fieldset className="min-w-0">
-              <legend className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                <Radio aria-hidden="true" className="size-4 text-primary" />
-                放送波
-              </legend>
-              <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-muted p-1">
-                {filters.map((filter) => (
-                  <Button
-                    key={`desktop-${filter.value}`}
-                    type="button"
-                    size="sm"
-                    variant={broadcast === filter.value ? "default" : "ghost"}
-                    aria-pressed={broadcast === filter.value}
-                    onClick={() => setBroadcast(filter.value)}
-                  >
-                    {filter.label}
-                  </Button>
-                ))}
-              </div>
-            </fieldset>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button asChild variant="ghost"><Link href="/guide/setting"><Settings aria-hidden="true" />番組表設定</Link></Button>
-              <Button
-                type="button"
-                variant={hasActiveHourZooms ? "default" : "outline"}
-                disabled={!hasActiveHourZooms}
-                onClick={() => setShowResetZoomsDialog(true)}
-              >
-                <ArrowUpDown aria-hidden="true" />拡大
-              </Button>
-              <Button type="button" variant="ghost" onClick={resource.revalidate} disabled={resource.isRefreshing}>
-                <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
-                更新
-              </Button>
-              <Button type="button" variant="ghost" onClick={requestFullscreen}>
-                {isFullscreenView ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
-                {isFullscreenView ? "全画面表示を終了" : "全画面表示"}
-              </Button>
-            </div>
-          </div>
+          <GuideToolbar
+            className="mx-4 mb-5"
+            date={date}
+            dateOptions={dateOptions}
+            broadcast={broadcast}
+            filters={filters}
+            hasActiveHourZooms={hasActiveHourZooms}
+            isRefreshing={resource.isRefreshing}
+            isFullscreenView={isFullscreenView}
+            showDesktopLabels
+            onChangeDate={setDate}
+            onChangeBroadcast={setBroadcast}
+            onResetZooms={() => setShowResetZoomsDialog(true)}
+            onRefresh={resource.revalidate}
+            onToggleFullscreen={requestFullscreen}
+          />
         </div>
       </div>
 
@@ -853,38 +894,22 @@ export function GuideView() {
       </div>
 
       {isFullscreenView ? (
-        <div
-          role="toolbar"
-          aria-label="番組表の全画面操作"
-          className="glass-panel fixed top-[calc(var(--guide-header-height,3.5rem)+0.5rem)] right-2 z-[70] flex items-center gap-1 rounded-xl border border-primary/60 p-1 shadow-lg"
-        >
-          <Button asChild variant="ghost" size="icon" className="lg:w-auto lg:px-4">
-            <Link href="/guide/setting" aria-label="番組表設定">
-              <Settings aria-hidden="true" />
-              <span className="hidden lg:inline">番組表設定</span>
-            </Link>
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant={hasActiveHourZooms ? "default" : "ghost"}
-            className="flex-col gap-0 text-[0.6rem] leading-none lg:w-auto lg:flex-row lg:gap-2 lg:px-4 lg:text-sm"
-            aria-label={hasActiveHourZooms ? "有効な時間帯の拡大をすべて解除" : "時間帯の拡大はありません"}
-            disabled={!hasActiveHourZooms}
-            onClick={() => setShowResetZoomsDialog(true)}
-          >
-            <ArrowUpDown aria-hidden="true" />
-            <span>拡大</span>
-          </Button>
-          <Button type="button" variant="ghost" size="icon" className="lg:w-auto lg:px-4" aria-label="更新" onClick={resource.revalidate} disabled={resource.isRefreshing}>
-            <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
-            <span className="hidden lg:inline">更新</span>
-          </Button>
-          <Button type="button" variant="ghost" size="icon" className="lg:w-auto lg:px-4" aria-label="全画面表示を終了" onClick={requestFullscreen}>
-            <Minimize2 aria-hidden="true" />
-            <span className="hidden lg:inline">全画面表示を終了</span>
-          </Button>
-        </div>
+        <GuideToolbar
+          className="fixed top-[calc(var(--guide-header-height,3.5rem)+0.5rem)] left-16 z-[70] max-w-[calc(100vw-5rem)]"
+          date={date}
+          dateOptions={dateOptions}
+          broadcast={broadcast}
+          filters={filters}
+          hasActiveHourZooms={hasActiveHourZooms}
+          isRefreshing={resource.isRefreshing}
+          isFullscreenView={isFullscreenView}
+          showDesktopLabels
+          onChangeDate={setDate}
+          onChangeBroadcast={setBroadcast}
+          onResetZooms={() => setShowResetZoomsDialog(true)}
+          onRefresh={resource.revalidate}
+          onToggleFullscreen={requestFullscreen}
+        />
       ) : null}
 
       {resource.data ? (

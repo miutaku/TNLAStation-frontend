@@ -97,23 +97,32 @@ describe("guideYForMinute", () => {
     const source = readFileSync(new URL("./guide-view.tsx", import.meta.url), "utf8");
 
     expect(source).toContain('className="mb-2 text-[2rem] leading-[1.1] font-bold tracking-tight lg:hidden"');
-    expect(source).toContain("glass-panel mb-2 flex flex-nowrap items-center gap-1 overflow-x-auto");
+    expect(source).toContain("function GuideToolbar(");
+    expect(source).toContain('className="mb-2 lg:hidden"');
     expect(source).toContain('role="group" aria-label="放送波"');
     expect(source).toContain('aria-label="放送波"');
     expect(source).toContain("モバイルの条件と操作は、見出しの次の行");
-    expect(source).toContain('className="flex-col gap-0 text-[0.6rem] leading-none"');
+    expect(source).toContain('"flex-col gap-0 text-[0.6rem] leading-none"');
     expect(source).toContain('<span>拡大</span>');
     expect(source).toContain('variant={hasActiveHourZooms ? "default" : "outline"}');
     expect(source).not.toContain("rounded-full bg-destructive");
     expect(source).not.toContain("全画面表示を利用できません");
     expect(source).toContain('classList.toggle("guide-bottom-ui-hidden", isBottomUiHidden)');
     expect(source).toContain('isFullscreenView ? "rounded-none" : "rounded-2xl"');
-    expect(source).toContain('aria-label="全画面表示を終了"');
-    expect(source).toContain('aria-label="番組表の全画面操作"');
+    expect(source).toContain('aria-label={isFullscreenView ? "全画面表示を終了" : "全画面表示"}');
+    expect(source).toContain('aria-label="番組表の操作"');
     expect(source).toContain("top-[calc(var(--guide-header-height,3.5rem)+0.5rem)]");
-    expect(source).toContain("rounded-xl border border-primary/60 p-1");
+    expect(source).toContain('className="fixed top-[calc(var(--guide-header-height,3.5rem)+0.5rem)] left-16 z-[70] max-w-[calc(100vw-5rem)]"');
+    expect(source).toContain("left-16");
+    expect(source).toContain("glass-panel flex w-fit max-w-full gap-1");
+    expect(source).toContain('showDesktopLabels ? "items-end" : "items-center"');
+    expect(source).toContain('showDesktopLabels ? "h-10" : "h-9"');
+    expect(source).toContain('<CalendarDays aria-hidden="true" className="size-4 text-primary" />');
+    expect(source).toContain('<Radio aria-hidden="true" className="size-4 text-primary" />');
+    expect(source).toContain('showDesktopLabels && "flex-col items-stretch gap-1"');
+    expect(source).toContain("element.scrollTop = Math.max(0, element.scrollTop - 72)");
     expect(source).toContain('<span className="hidden lg:inline">番組表設定</span>');
-    expect(source).toContain('<span className="hidden lg:inline">全画面表示を終了</span>');
+    expect(source).toContain('<span className="hidden lg:inline">{isFullscreenView ? "全画面表示を終了" : "全画面表示"}</span>');
     expect(source).toContain('disabled={!hasActiveHourZooms}');
   });
 
