@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
-import { GUIDE_COLUMN_WIDTH_DESKTOP, GUIDE_COLUMN_WIDTH_MOBILE, openingMinutesFor } from "./guide-view";
+import { GUIDE_COLUMN_WIDTH_DESKTOP, GUIDE_COLUMN_WIDTH_MOBILE, guideYForMinute, openingMinutesFor } from "./guide-view";
 
 describe("guide layout", () => {
   it("uses the EPGStation responsive channel widths for rendering and virtualization", () => {
@@ -33,6 +33,15 @@ describe("guide layout", () => {
     expect(source).toContain('"line-clamp-2 font-semibold [overflow-wrap:anywhere]"');
     expect(source).not.toContain('"truncate font-semibold"');
   });
+
+  it("shows the program name before its start time", () => {
+    const source = readFileSync(new URL("./guide-view.tsx", import.meta.url), "utf8");
+    const programName = source.indexOf('<h3 className="text-sm leading-5 font-semibold">{program.name}</h3>');
+    const startTime = source.indexOf('<time dateTime={new Date(program.startAt).toISOString()}>');
+
+    expect(programName).toBeGreaterThan(-1);
+    expect(startTime).toBeGreaterThan(programName);
+  });
 });
 
 describe("openingMinutesFor", () => {
@@ -56,5 +65,28 @@ describe("openingMinutesFor", () => {
 
   it("stays at the top before the clock is known", () => {
     expect(openingMinutesFor(date, 0, 660)).toBe(0);
+  });
+});
+
+describe("guideYForMinute", () => {
+  it("expands only the selected hour", () => {
+    expect(guideYForMinute(60, 3, { 1: 3 })).toBe(180);
+    expect(guideYForMinute(120, 3, { 1: 3 })).toBe(720);
+    expect(guideYForMinute(180, 3, { 1: 3 })).toBe(900);
+  });
+
+  it("splits a program crossing an hour boundary across both zoom levels", () => {
+    const top = guideYForMinute(55, 3, { 1: 3 });
+    const bottom = guideYForMinute(65, 3, { 1: 3 });
+
+    expect(bottom - top).toBe(60);
+  });
+
+  it("keeps the time axis controls within the fixed width", () => {
+    const source = readFileSync(new URL("./guide-view.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain('"sticky left-0 z-30 w-14 shrink-0');
+    expect(source).toContain("拡大を解除");
+    expect(source).toContain('aria-label="時間帯ごとの拡大をすべて解除"');
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Maximize2, Minimize2, Radio, RefreshCw, Settings } from "lucide-react";
+import { CalendarDays, Maximize2, Minus, Minimize2, Plus, Radio, RefreshCw, RotateCcw, Settings } from "lucide-react";
 import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
@@ -10,6 +10,7 @@ import { ProgramReserveDialog } from "@/components/guide/program-reserve-dialog"
 import { WatchNowDialog } from "@/components/onair/watch-now-dialog";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
+import { AnchoredMenu } from "@/components/ui/anchored-menu";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api/client";
 import type { ChannelType, Config, Reserves, Schedule, ScheduleProgramItem } from "@/lib/api/types";
@@ -25,6 +26,24 @@ type BroadcastFilter = "ALL" | ChannelType;
 
 const BROADCAST_TYPE_LABELS: Record<ChannelType, string> = { GR: "地デジ", BS: "BS", CS: "CS", SKY: "SKY" };
 const BROADCAST_TYPE_ORDER: readonly ChannelType[] = ["GR", "BS", "CS", "SKY"];
+const GUIDE_HOUR_ZOOM_MIN = 1;
+const GUIDE_HOUR_ZOOM_MAX = 4;
+type GuideHourZooms = Readonly<Record<number, number>>;
+
+export function guideYForMinute(minute: number, pixelsPerMinute: number, hourZooms: GuideHourZooms): number {
+  if (minute <= 0) return minute * pixelsPerMinute;
+
+  let y = 0;
+  let remaining = minute;
+  let hour = 0;
+  while (remaining > 0) {
+    const minutes = Math.min(60, remaining);
+    y += minutes * pixelsPerMinute * (hourZooms[hour] ?? 1);
+    remaining -= minutes;
+    hour += 1;
+  }
+  return y;
+}
 
 /** 窓は常にその日の 0 時から。過ぎた時間帯も上へスクロールすれば見られる。 */
 function windowStartFor(date: string): number {
@@ -79,11 +98,12 @@ function guideDateOptions(reference: number = Date.now()): { value: string; labe
  */
 // 列を数フレームに分けて足すとき、既に置いた列まで描き直すと O(n^2) になって重くなる。
 // memo で、番組表 (schedule) と座標系が同じ列は再描画を省く。
-const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windowMinutes, pixelsPerMinute, highlightGenres, showChannelLogo, showChannelInfo, reservedIds, now, onSelectProgram, onSelectChannel }: {
+const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windowMinutes, pixelsPerMinute, hourZooms, highlightGenres, showChannelLogo, showChannelInfo, reservedIds, now, onSelectProgram, onSelectChannel }: {
   schedule: Schedule;
   windowStart: number;
   windowMinutes: number;
   pixelsPerMinute: number;
+  hourZooms: GuideHourZooms;
   /** 目立たせる大分類ジャンル。空なら全番組を通常表示。 */
   highlightGenres: readonly number[];
   showChannelLogo: boolean;
@@ -136,14 +156,16 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
           </div>
         </button>
       </header>
-      <div className="relative" style={{ height: `${windowMinutes * pixelsPerMinute}px` }}>
-        <HourLines windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
+      <div className="relative" style={{ height: `${guideYForMinute(windowMinutes, pixelsPerMinute, hourZooms)}px` }}>
+        <HourLines windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} hourZooms={hourZooms} />
         {schedule.programs
           .filter((program) => program.endAt > windowStart && program.startAt < windowStart + windowMinutes * 60_000)
           .map((program) => {
             const offsetMinutes = (program.startAt - windowStart) / 60_000;
             const lengthMinutes = (program.endAt - program.startAt) / 60_000;
-            const height = lengthMinutes * pixelsPerMinute;
+            const top = guideYForMinute(offsetMinutes, pixelsPerMinute, hourZooms);
+            const height =
+              guideYForMinute(offsetMinutes + lengthMinutes, pixelsPerMinute, hourZooms) - top;
             const reserved = reservedIds.has(program.id);
             const finished = hasFinished(program, now);
             const dimmed =
@@ -165,17 +187,17 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
                     ? "cursor-not-allowed opacity-45 grayscale"
                     : "hover:shadow-md hover:brightness-105",
                 )}
-                style={{ top: `${offsetMinutes * pixelsPerMinute}px`, height: `${height}px` }}
-                aria-label={`${formatTime(program.startAt)} ${program.name}${finished ? " (放送終了)" : " の録画予約メニュー"}`}
+                style={{ top: `${top}px`, height: `${height}px` }}
+                aria-label={`${program.name} ${formatTime(program.startAt)}${finished ? " (放送終了)" : " の録画予約メニュー"}`}
                 onClick={() => onSelectProgram(program, schedule.channel.name)}
               >
+                <h3 className="text-sm leading-5 font-semibold">{program.name}</h3>
                 <div className="flex items-center gap-1.5 text-[0.7rem] leading-4 font-medium text-muted-foreground">
                   <time dateTime={new Date(program.startAt).toISOString()}>{formatTime(program.startAt)}</time>
                   <span>({formatDuration(program.startAt, program.endAt)})</span>
                   {!program.isFree ? <Badge variant="outline">有料</Badge> : null}
                   {reserved ? <Badge variant="destructive">予約</Badge> : null}
                 </div>
-                <h3 className="mt-0.5 text-sm leading-5 font-semibold">{program.name}</h3>
                 {/* 短い番組に説明を入れると番組名が隠れるため、入る高さのときだけ出す。 */}
                 {program.description && height >= 108 ? (
                   <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">{program.description}</p>
@@ -191,7 +213,11 @@ const ProgramColumn = memo(function ProgramColumn({ schedule, windowStart, windo
   );
 });
 
-function HourLines({ windowMinutes, pixelsPerMinute }: { windowMinutes: number; pixelsPerMinute: number }) {
+function HourLines({ windowMinutes, pixelsPerMinute, hourZooms }: {
+  windowMinutes: number;
+  pixelsPerMinute: number;
+  hourZooms: GuideHourZooms;
+}) {
   return (
     <>
       {Array.from({ length: Math.ceil(windowMinutes / 60) }, (_, hour) => (
@@ -199,33 +225,118 @@ function HourLines({ windowMinutes, pixelsPerMinute }: { windowMinutes: number; 
           key={hour}
           aria-hidden="true"
           className="absolute inset-x-0 border-t border-border/60"
-          style={{ top: `${hour * 60 * pixelsPerMinute}px` }}
+          style={{ top: `${guideYForMinute(hour * 60, pixelsPerMinute, hourZooms)}px` }}
         />
       ))}
     </>
   );
 }
 
-function TimeAxis({ windowStart, windowMinutes, pixelsPerMinute }: { windowStart: number; windowMinutes: number; pixelsPerMinute: number }) {
+function TimeAxis({
+  windowStart,
+  windowMinutes,
+  pixelsPerMinute,
+  hourZooms,
+  onChangeZoom,
+  onResetZooms,
+}: {
+  windowStart: number;
+  windowMinutes: number;
+  pixelsPerMinute: number;
+  hourZooms: GuideHourZooms;
+  onChangeZoom: (hour: number, zoom: number) => void;
+  onResetZooms: () => void;
+}) {
+  const [selectedHour, setSelectedHour] = useState<number | null>(null);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const selectedZoom = selectedHour === null ? 1 : hourZooms[selectedHour] ?? 1;
+
+  const openZoom = (hour: number, element: HTMLElement) => {
+    setSelectedHour(hour);
+    setAnchor(element);
+  };
+
   return (
     <div className="sticky left-0 z-30 w-14 shrink-0 border-r bg-background/95 backdrop-blur">
       <div className="glass-header sticky top-0 z-10 h-[var(--guide-header-height,3.5rem)] rounded-none border-x-0 border-t-0" />
-      <div className="relative" style={{ height: `${windowMinutes * pixelsPerMinute}px` }}>
+      <div className="relative" style={{ height: `${guideYForMinute(windowMinutes, pixelsPerMinute, hourZooms)}px` }}>
         {Array.from({ length: Math.ceil(windowMinutes / 60) }, (_, hour) => (
-          <div
+          <button
+            type="button"
             key={hour}
-            className="absolute inset-x-0 border-t border-border/60 pt-1 text-center text-xs font-medium text-muted-foreground"
-            style={{ top: `${hour * 60 * pixelsPerMinute}px` }}
+            className="absolute inset-x-0 border-t border-border/60 pt-1 text-center text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+            style={{ top: `${guideYForMinute(hour * 60, pixelsPerMinute, hourZooms)}px` }}
+            aria-label={`${formatTime(windowStart + hour * 3_600_000)}の時間帯を拡大`}
+            onClick={(event) => openZoom(hour, event.currentTarget)}
           >
-            {formatTime(windowStart + hour * 3_600_000)}
-          </div>
+            <span className="block">{formatTime(windowStart + hour * 3_600_000)}</span>
+            {(hourZooms[hour] ?? 1) > 1 ? <span className="block text-[0.65rem] font-bold text-primary">{hourZooms[hour]}x</span> : null}
+          </button>
         ))}
       </div>
+      <AnchoredMenu
+        open={selectedHour !== null}
+        anchor={anchor}
+        title={selectedHour === null ? "時間帯の拡大" : `${formatTime(windowStart + selectedHour * 3_600_000)}の拡大`}
+        width={220}
+        onClose={() => {
+          setSelectedHour(null);
+          setAnchor(null);
+        }}
+      >
+        <div className="flex items-center justify-center gap-3">
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            disabled={selectedHour === null || selectedZoom <= GUIDE_HOUR_ZOOM_MIN}
+            aria-label="この時間帯を縮小"
+            onClick={() => selectedHour !== null && onChangeZoom(selectedHour, selectedZoom - 1)}
+          >
+            <Minus aria-hidden="true" />
+          </Button>
+          <output className="min-w-12 text-center text-lg font-bold tabular-nums">{selectedZoom}x</output>
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            disabled={selectedHour === null || selectedZoom >= GUIDE_HOUR_ZOOM_MAX}
+            aria-label="この時間帯を拡大"
+            onClick={() => selectedHour !== null && onChangeZoom(selectedHour, selectedZoom + 1)}
+          >
+            <Plus aria-hidden="true" />
+          </Button>
+        </div>
+        <div className="mt-3 flex flex-col gap-2 border-t pt-3">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={selectedHour === null || selectedZoom === 1}
+            onClick={() => selectedHour !== null && onChangeZoom(selectedHour, 1)}
+          >
+            <RotateCcw aria-hidden="true" />1xに戻す
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label="時間帯ごとの拡大をすべて解除"
+            onClick={onResetZooms}
+          >
+            <RotateCcw aria-hidden="true" />拡大を解除
+          </Button>
+        </div>
+      </AnchoredMenu>
     </div>
   );
 }
 
-function NowLine({ now, windowStart, windowMinutes, pixelsPerMinute }: { now: number; windowStart: number; windowMinutes: number; pixelsPerMinute: number }) {
+function NowLine({ now, windowStart, windowMinutes, pixelsPerMinute, hourZooms }: {
+  now: number;
+  windowStart: number;
+  windowMinutes: number;
+  pixelsPerMinute: number;
+  hourZooms: GuideHourZooms;
+}) {
   const offsetMinutes = (now - windowStart) / 60_000;
   if (offsetMinutes < 0 || offsetMinutes > windowMinutes) return null;
 
@@ -234,7 +345,7 @@ function NowLine({ now, windowStart, windowMinutes, pixelsPerMinute }: { now: nu
     <div
       aria-hidden="true"
       className="pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-red-500"
-      style={{ top: `calc(var(--guide-header-height, 3.5rem) + ${offsetMinutes * pixelsPerMinute}px)` }}
+      style={{ top: `calc(var(--guide-header-height, 3.5rem) + ${guideYForMinute(offsetMinutes, pixelsPerMinute, hourZooms)}px)` }}
     >
       <span className="absolute -top-2 left-0 rounded-r bg-red-500 px-1.5 py-0.5 text-[0.65rem] leading-3 font-bold text-white">
         {formatTime(now)}
@@ -285,6 +396,7 @@ function GuideGrid({
   onSelectChannel: (channel: Schedule["channel"]) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [hourZooms, setHourZooms] = useState<Record<number, number>>({});
   const [sequentialCount, setSequentialCount] = useState(SEQUENTIAL_BATCH);
   const [visibleRange, setVisibleRange] = useState({
     start: 0,
@@ -309,7 +421,7 @@ function GuideGrid({
 
     // 列がまだ描かれていないと中身の高さが足りず、代入した位置は 0 へ丸められる。
     // 高さが目的の位置に届くまでフレームごとに試す。
-    const target = openingMinutes * pixelsPerMinute;
+    const target = guideYForMinute(openingMinutes, pixelsPerMinute, hourZooms);
     let frame = 0;
     const settle = () => {
       element.scrollTop = target;
@@ -321,7 +433,7 @@ function GuideGrid({
     };
     frame = requestAnimationFrame(settle);
     return () => cancelAnimationFrame(frame);
-  }, [openingMinutes, pixelsPerMinute, schedules]);
+  }, [hourZooms, openingMinutes, pixelsPerMinute, schedules]);
 
   useEffect(() => {
     if (drawMode !== "sequential" || sequentialCount >= schedules.length) return;
@@ -395,7 +507,19 @@ function GuideGrid({
     >
       {/* 時間軸・列・現在時刻の線を同じ座標系に置くため、内容全体を 1 つの relative でまとめる。 */}
       <div className={cn("relative flex w-max min-w-full", headerHeightClass)}>
-        <TimeAxis windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
+        <TimeAxis
+          windowStart={windowStart}
+          windowMinutes={windowMinutes}
+          pixelsPerMinute={pixelsPerMinute}
+          hourZooms={hourZooms}
+          onChangeZoom={(hour, zoom) => setHourZooms((current) => {
+            if (zoom !== 1) return { ...current, [hour]: zoom };
+            const next = { ...current };
+            delete next[hour];
+            return next;
+          })}
+          onResetZooms={() => setHourZooms({})}
+        />
         {leftSpacer > 0 ? <div aria-hidden="true" style={{ width: leftSpacer }} className="shrink-0" /> : null}
         {columns.map((schedule) => (
           <div
@@ -408,6 +532,7 @@ function GuideGrid({
               windowStart={windowStart}
               windowMinutes={windowMinutes}
               pixelsPerMinute={pixelsPerMinute}
+              hourZooms={hourZooms}
               highlightGenres={highlightGenres}
               showChannelLogo={showChannelLogo}
               showChannelInfo={showChannelInfo}
@@ -419,7 +544,13 @@ function GuideGrid({
           </div>
         ))}
         {rightSpacer > 0 ? <div aria-hidden="true" style={{ width: rightSpacer }} className="shrink-0" /> : null}
-        <NowLine now={now} windowStart={windowStart} windowMinutes={windowMinutes} pixelsPerMinute={pixelsPerMinute} />
+        <NowLine
+          now={now}
+          windowStart={windowStart}
+          windowMinutes={windowMinutes}
+          pixelsPerMinute={pixelsPerMinute}
+          hourZooms={hourZooms}
+        />
       </div>
     </div>
   );
