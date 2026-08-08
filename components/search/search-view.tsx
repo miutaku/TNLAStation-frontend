@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarSearch, ListPlus, RefreshCw, RotateCcw, Search } from "lucide-react";
+import { CalendarSearch, Info, ListPlus, RefreshCw, RotateCcw, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
@@ -13,6 +13,7 @@ import {
   useCollectionViewMode,
 } from "@/components/collection-view";
 import { PageHeader } from "@/components/page-header";
+import { ProgramReserveDialog } from "@/components/guide/program-reserve-dialog";
 import { createRuleDraftUrl } from "@/components/rules/rule-create-draft";
 import { SortMenu, sortItems, useSortState, type SortAccessors, type SortColumnDefinition } from "@/components/sortable-columns";
 import {
@@ -42,7 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiClient } from "@/lib/api/client";
-import type { ChannelItem, ScheduleProgramItem, ScheduleSearchOptions, BroadcastStatus } from "@/lib/api/types";
+import type { ChannelItem, Config, ReserveItem, ScheduleProgramItem, ScheduleSearchOptions, BroadcastStatus } from "@/lib/api/types";
 import { formatDateTime, formatDuration, genreName } from "@/lib/format";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
 import { useChannelNames } from "@/lib/hooks/use-channel-names";
@@ -76,7 +77,15 @@ const searchResultSortColumns: SortColumnDefinition<SearchResultTableColumn>[] =
   (column) => searchResultSortAccessors[column.key],
 );
 
-function ProgramResult({ program, viewMode }: { program: ScheduleProgramItem; viewMode: CollectionViewMode }) {
+function ProgramResult({
+  program,
+  viewMode,
+  onOpen,
+}: {
+  program: ScheduleProgramItem;
+  viewMode: CollectionViewMode;
+  onOpen: (program: ScheduleProgramItem) => void;
+}) {
   const channelName = useChannelNames();
   return (
     <Card className={viewMode === "list" ? "rounded-lg shadow-none transition-colors hover:bg-muted/35" : "transition-shadow hover:shadow-md"}>
@@ -95,6 +104,11 @@ function ProgramResult({ program, viewMode }: { program: ScheduleProgramItem; vi
             <span className="ml-2 text-muted-foreground">{formatDuration(program.startAt, program.endAt)}</span>
           </p>
           {program.description ? <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted-foreground">{program.description}</p> : null}
+          <div className="mt-4 flex justify-end border-t pt-4">
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpen(program)}>
+              <Info aria-hidden="true" />詳細を見る
+            </Button>
+          </div>
         </article>
       </CardContent>
     </Card>
@@ -104,9 +118,11 @@ function ProgramResult({ program, viewMode }: { program: ScheduleProgramItem; vi
 function ProgramResultsTable({
   programs,
   columns,
+  onOpen,
 }: {
   programs: ScheduleProgramItem[];
   columns: TableColumnVisibilityState<SearchResultTableColumn>;
+  onOpen: (program: ScheduleProgramItem) => void;
 }) {
   const channelName = useChannelNames();
   const visibleColumns = columns.columns.filter((column) => columns.isVisible(column.key));
@@ -139,6 +155,7 @@ function ProgramResultsTable({
       <TableHeader>
         <TableRow>
           {visibleColumns.map((column) => <TableHead key={column.key}>{column.label}</TableHead>)}
+          <TableHead className="text-right">操作</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -149,6 +166,11 @@ function ProgramResultsTable({
                 {renderCell(column.key, program)}
               </TableCell>
             ))}
+            <TableCell className="text-right">
+              <Button type="button" variant="outline" size="sm" onClick={() => onOpen(program)}>
+                <Info aria-hidden="true" />詳細を見る
+              </Button>
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -165,6 +187,9 @@ export function SearchView() {
     return keyword ? { ...DEFAULT_SEARCH_CONDITIONS, keyword } : DEFAULT_SEARCH_CONDITIONS;
   });
   const [channels, setChannels] = useState<ChannelItem[]>([]);
+  const [config, setConfig] = useState<Config | null>(null);
+  const [reserves, setReserves] = useState<ReserveItem[]>([]);
+  const [selectedProgram, setSelectedProgram] = useState<ScheduleProgramItem | null>(null);
   const requestId = useRef(0);
   // 「この番組を検索」のようなリンクは、遷移した時点で結果が出ていることを期待している。
   // ?keyword= 由来の条件をフォームへ入れるだけでなく、ここで検索も実行しておく。
@@ -197,7 +222,15 @@ export function SearchView() {
     // 受信できる放送波を知るためだけに読む。取れなければ全種別を出す。
     void apiClient.getConfig().then(
       (config) => {
-        if (!cancelled) setBroadcast(config.broadcast);
+        if (cancelled) return;
+        setConfig(config);
+        setBroadcast(config.broadcast);
+      },
+      () => undefined,
+    );
+    void apiClient.getReserves({ type: "normal", isHalfWidth: false, limit: 2000 }).then(
+      (result) => {
+        if (!cancelled) setReserves(result.reserves);
       },
       () => undefined,
     );
@@ -242,6 +275,17 @@ export function SearchView() {
     setConditions(DEFAULT_SEARCH_CONDITIONS);
     setRequest(null);
   };
+
+  const reloadReserves = useCallback(() => {
+    void apiClient.getReserves({ type: "normal", isHalfWidth: false, limit: 2000 }).then(
+      (result) => setReserves(result.reserves),
+      () => undefined,
+    );
+  }, []);
+
+  const selectedReserveId = selectedProgram
+    ? reserves.find((reserve) => reserve.programId === selectedProgram.id)?.id
+    : undefined;
 
   return (
     <>
@@ -297,13 +341,28 @@ export function SearchView() {
             </div>
           </div>
           {viewMode === "list" ? (
-            <ProgramResultsTable programs={sortedResults} columns={tableColumns} />
+            <ProgramResultsTable programs={sortedResults} columns={tableColumns} onOpen={setSelectedProgram} />
           ) : (
             <div className={collectionLayoutClass(viewMode, "xl:grid-cols-2")}>
-              {sortedResults.map((program) => <ProgramResult key={program.id} program={program} viewMode={viewMode} />)}
+              {sortedResults.map((program) => (
+                <ProgramResult key={program.id} program={program} viewMode={viewMode} onOpen={setSelectedProgram} />
+              ))}
             </div>
           )}
         </section>
+      ) : null}
+      {config ? (
+        <ProgramReserveDialog
+          program={selectedProgram}
+          channelName={selectedProgram
+            ? channels.find((channel) => channel.id === selectedProgram.channelId)?.name ??
+              `チャンネル ${selectedProgram.channelId}`
+            : ""}
+          config={config}
+          reserveId={selectedReserveId}
+          onClose={() => setSelectedProgram(null)}
+          onReserved={reloadReserves}
+        />
       ) : null}
     </>
   );
