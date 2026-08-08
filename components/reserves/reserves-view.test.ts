@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import { reserveMethodLabel } from "./reserves-view";
 
 describe("reserveMethodLabel", () => {
-  // EPGStation の予約項目にルール名は無い (api.d.ts にも ReserveApiModel にも存在しない)。
-  // 互換面に無い鍵を足さないため、ルール由来かどうかは ruleId だけで決める。
-  it("identifies a rule-generated reservation by its rule id", () => {
+  it("uses the rule name for a rule-generated reservation", () => {
+    expect(reserveMethodLabel({ ruleId: 2, ruleName: "週末ドラマ" })).toBe("週末ドラマ");
+  });
+
+  it("falls back to the rule id when an older backend omits the name", () => {
     expect(reserveMethodLabel({ ruleId: 2 })).toBe("ルール #2");
   });
 

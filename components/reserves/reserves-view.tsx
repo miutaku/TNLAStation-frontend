@@ -82,10 +82,9 @@ const reserveSortColumns: SortColumnDefinition<ReserveTableColumn>[] = reserveTa
   (column) => reserveSortAccessors[column.key],
 );
 
-// EPGStation の予約項目にルール名は含まれない (api.d.ts / ReserveApiModel のどちらにも無い)。
-// 互換面に無い鍵を足さないため、ここは予約に載っている ruleId だけで表示を決める。
-export function reserveMethodLabel(reserve: Pick<ReserveItem, "ruleId">): string {
+export function reserveMethodLabel(reserve: Pick<ReserveItem, "ruleId" | "ruleName">): string {
   if (!reserve.ruleId) return "手動予約";
+  if (reserve.ruleName) return reserve.ruleName;
   return `ルール #${reserve.ruleId}`;
 }
 
