@@ -104,10 +104,16 @@ describe("guideYForMinute", () => {
     expect(source).toContain('className="flex-col gap-0 text-[0.6rem] leading-none"');
     expect(source).toContain('<span>拡大</span>');
     expect(source).toContain('variant={hasActiveHourZooms ? "default" : "outline"}');
-    expect(source).not.toContain('variant={hasActiveHourZooms ? "default" : "ghost"}');
     expect(source).not.toContain("rounded-full bg-destructive");
     expect(source).not.toContain("全画面表示を利用できません");
     expect(source).toContain('classList.toggle("guide-bottom-ui-hidden", isBottomUiHidden)');
+    expect(source).toContain('isFullscreenView ? "rounded-none" : "rounded-2xl"');
+    expect(source).toContain('aria-label="全画面表示を終了"');
+    expect(source).toContain('aria-label="番組表の全画面操作"');
+    expect(source).toContain("top-[calc(var(--guide-header-height,3.5rem)+0.5rem)]");
+    expect(source).toContain("rounded-xl border border-primary/60 p-1");
+    expect(source).toContain('<span className="hidden lg:inline">番組表設定</span>');
+    expect(source).toContain('<span className="hidden lg:inline">全画面表示を終了</span>');
     expect(source).toContain('disabled={!hasActiveHourZooms}');
   });
 

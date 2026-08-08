@@ -682,7 +682,10 @@ export function GuideView() {
         />
       ) : null}
       {resource.data && hasPrograms ? (
-        <div className="glass-panel flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
+        <div className={cn(
+          "glass-panel flex min-h-0 flex-1 flex-col overflow-hidden",
+          isFullscreenView ? "rounded-none" : "rounded-2xl",
+        )}>
           <GuideGrid
             schedules={schedules}
             windowStart={windowStart}
@@ -710,7 +713,7 @@ export function GuideView() {
   // h-full ではなく flex-1 だけで高さをつなぐ (h-full は親の高さ確定に依存し崩れやすい)。
   return (
     <div ref={pageRef} className="flex min-h-0 flex-1 flex-col bg-background">
-      <div className="shrink-0 px-3 pt-3 sm:px-4 lg:px-6 lg:pt-6">
+      <div className={cn("shrink-0 px-3 pt-3 sm:px-4 lg:px-6 lg:pt-6", isFullscreenView && "hidden")}>
         <h1 className="mb-2 text-[2rem] leading-[1.1] font-bold tracking-tight lg:hidden">番組表</h1>
         {/* モバイルの条件と操作は、見出しの次の行にある 1 つのボタンエリアへまとめる。 */}
         <div className="glass-panel mb-2 flex flex-nowrap items-center gap-1 overflow-x-auto rounded-xl p-2 shadow-sm lg:hidden">
@@ -840,9 +843,49 @@ export function GuideView() {
       {/* BottomNav はガラス素材の半透明タブバーなので、番組表はその下端 (safe-area+0.75rem、
           lg 以上では非表示) まで潜り込ませて奥に見せる。タブバー自体の帯 (h-[4.5rem] 分) は
           pointer-events-auto で自分だけクリックを受け取るため、透けて見える番組も操作できる。 */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-6 lg:px-10 lg:pb-8">
+      <div className={cn(
+        "flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto",
+        isFullscreenView
+          ? "p-0"
+          : "px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-6 lg:px-10 lg:pb-8",
+      )}>
         {resourceState}
       </div>
+
+      {isFullscreenView ? (
+        <div
+          role="toolbar"
+          aria-label="番組表の全画面操作"
+          className="glass-panel fixed top-[calc(var(--guide-header-height,3.5rem)+0.5rem)] right-2 z-[70] flex items-center gap-1 rounded-xl border border-primary/60 p-1 shadow-lg"
+        >
+          <Button asChild variant="ghost" size="icon" className="lg:w-auto lg:px-4">
+            <Link href="/guide/setting" aria-label="番組表設定">
+              <Settings aria-hidden="true" />
+              <span className="hidden lg:inline">番組表設定</span>
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={hasActiveHourZooms ? "default" : "ghost"}
+            className="flex-col gap-0 text-[0.6rem] leading-none lg:w-auto lg:flex-row lg:gap-2 lg:px-4 lg:text-sm"
+            aria-label={hasActiveHourZooms ? "有効な時間帯の拡大をすべて解除" : "時間帯の拡大はありません"}
+            disabled={!hasActiveHourZooms}
+            onClick={() => setShowResetZoomsDialog(true)}
+          >
+            <ArrowUpDown aria-hidden="true" />
+            <span>拡大</span>
+          </Button>
+          <Button type="button" variant="ghost" size="icon" className="lg:w-auto lg:px-4" aria-label="更新" onClick={resource.revalidate} disabled={resource.isRefreshing}>
+            <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
+            <span className="hidden lg:inline">更新</span>
+          </Button>
+          <Button type="button" variant="ghost" size="icon" className="lg:w-auto lg:px-4" aria-label="全画面表示を終了" onClick={requestFullscreen}>
+            <Minimize2 aria-hidden="true" />
+            <span className="hidden lg:inline">全画面表示を終了</span>
+          </Button>
+        </div>
+      ) : null}
 
       {resource.data ? (
         <ProgramReserveDialog

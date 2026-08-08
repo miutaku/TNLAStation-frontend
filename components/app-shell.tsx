@@ -110,7 +110,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className={cn("min-w-0", "lg:pl-60", lockViewport && "flex h-full flex-col overflow-hidden")}>
         {preferences.isShowAppHeader ? (
-          <header className="chrome-header sticky top-0 z-20 flex h-14 shrink-0 items-center px-4 lg:hidden">
+          <header className="app-top-ui chrome-header sticky top-0 z-20 flex h-14 shrink-0 items-center px-4 lg:hidden">
             <Brand />
           </header>
         ) : null}

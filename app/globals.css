@@ -168,6 +168,10 @@ body.guide-bottom-ui-hidden .app-bottom-ui {
   display: none;
 }
 
+body.guide-bottom-ui-hidden .app-top-ui {
+  display: none;
+}
+
 h1,
 h2,
 h3 {
