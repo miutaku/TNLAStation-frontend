@@ -163,6 +163,11 @@ body.route-viewport-lock {
   height: var(--app-viewport-height, 100dvh);
 }
 
+/* Fullscreen API 非対応環境では、全画面ボタンでボトムUIだけを切り替える。 */
+body.guide-bottom-ui-hidden .app-bottom-ui {
+  display: none;
+}
+
 h1,
 h2,
 h3 {

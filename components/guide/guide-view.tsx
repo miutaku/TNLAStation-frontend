@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { AnchoredMenu } from "@/components/ui/anchored-menu";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { apiClient } from "@/lib/api/client";
 import type { ChannelType, Config, Reserves, Schedule, ScheduleProgramItem } from "@/lib/api/types";
 import { formatDuration, formatLongDate, formatTime, genreName, programTone } from "@/lib/format";
@@ -237,14 +238,12 @@ function TimeAxis({
   pixelsPerMinute,
   hourZooms,
   onChangeZoom,
-  onResetZooms,
 }: {
   windowStart: number;
   windowMinutes: number;
   pixelsPerMinute: number;
   hourZooms: GuideHourZooms;
   onChangeZoom: (hour: number, zoom: number) => void;
-  onResetZooms: () => void;
 }) {
   const [selectedHour, setSelectedHour] = useState<number | null>(null);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
@@ -326,14 +325,6 @@ function TimeAxis({
           >
             <RotateCcw aria-hidden="true" />1xに戻す
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            aria-label="時間帯ごとの拡大をすべて解除"
-            onClick={onResetZooms}
-          >
-            <RotateCcw aria-hidden="true" />拡大を解除
-          </Button>
         </div>
       </AnchoredMenu>
     </div>
@@ -386,6 +377,8 @@ function GuideGrid({
   pixelsPerMinute,
   reservedIds,
   openingMinutes,
+  hourZooms,
+  onChangeHourZoom,
   onSelectProgram,
   onSelectChannel,
 }: {
@@ -402,11 +395,12 @@ function GuideGrid({
   reservedIds: ReadonlySet<number>;
   /** 開いたときに送る位置 (窓の先頭からの分)。 */
   openingMinutes: number;
+  hourZooms: GuideHourZooms;
+  onChangeHourZoom: (hour: number, zoom: number) => void;
   onSelectProgram: (program: ScheduleProgramItem, channelName: string) => void;
   onSelectChannel: (channel: Schedule["channel"]) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [hourZooms, setHourZooms] = useState<Record<number, number>>({});
   const [sequentialCount, setSequentialCount] = useState(SEQUENTIAL_BATCH);
   const [visibleRange, setVisibleRange] = useState({
     start: 0,
@@ -522,13 +516,7 @@ function GuideGrid({
           windowMinutes={windowMinutes}
           pixelsPerMinute={pixelsPerMinute}
           hourZooms={hourZooms}
-          onChangeZoom={(hour, zoom) => setHourZooms((current) => {
-            if (zoom !== 1) return { ...current, [hour]: zoom };
-            const next = { ...current };
-            delete next[hour];
-            return next;
-          })}
-          onResetZooms={() => setHourZooms({})}
+          onChangeZoom={onChangeHourZoom}
         />
         {leftSpacer > 0 ? <div aria-hidden="true" style={{ width: leftSpacer }} className="shrink-0" /> : null}
         {columns.map((schedule) => (
@@ -574,9 +562,13 @@ export function GuideView() {
   const [now, setNow] = useState(0);
   const [selectedProgram, setSelectedProgram] = useState<{ program: ScheduleProgramItem; channelName: string } | null>(null);
   const [watchChannel, setWatchChannel] = useState<{ id: number; name: string } | null>(null);
+  const [hourZooms, setHourZooms] = useState<Record<number, number>>({});
+  const [showResetZoomsDialog, setShowResetZoomsDialog] = useState(false);
+  const [isBottomUiHidden, setIsBottomUiHidden] = useState(false);
   const { preferences } = usePreferences();
   const pageRef = useRef<HTMLDivElement>(null);
   const { isFullscreen, isSupported: isFullscreenSupported, toggle: toggleFullscreen } = useFullscreen(pageRef);
+  const isFullscreenView = isFullscreen || isBottomUiHidden;
   const dateOptions = useMemo(() => guideDateOptions(), []);
 
   const selectProgram = useCallback((program: ScheduleProgramItem, channelName: string) => {
@@ -595,6 +587,11 @@ export function GuideView() {
       window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle("guide-bottom-ui-hidden", isBottomUiHidden);
+    return () => document.body.classList.remove("guide-bottom-ui-hidden");
+  }, [isBottomUiHidden]);
 
   // 開始位置は時計から導くが、時に丸めてあるので毎分は動かない。時が変わったときだけ
   // 取り直し、番組表が 1 分ごとに再取得されるのを避ける。
@@ -636,6 +633,23 @@ export function GuideView() {
     [resource.data?.reserves.reserves],
   );
   const reservedIds = useMemo(() => new Set(reserveIds.keys()), [reserveIds]);
+  const hasActiveHourZooms = Object.keys(hourZooms).length > 0;
+  const changeHourZoom = useCallback((hour: number, zoom: number) => {
+    setHourZooms((current) => {
+      if (zoom !== 1) return { ...current, [hour]: zoom };
+      const next = { ...current };
+      delete next[hour];
+      return next;
+    });
+  }, []);
+  const requestFullscreen = () => {
+    if (isFullscreenSupported) {
+      toggleFullscreen();
+      return;
+    }
+
+    setIsBottomUiHidden((hidden) => !hidden);
+  };
 
   // config.broadcast は実際に受信できる放送波。読み込み前は全種別を出し、届き次第絞り込む。
   const availableBroadcastTypes = useMemo(
@@ -682,6 +696,8 @@ export function GuideView() {
             pixelsPerMinute={preferences.guidePixelsPerMinute}
             reservedIds={reservedIds}
             openingMinutes={openingMinutes}
+            hourZooms={hourZooms}
+            onChangeHourZoom={changeHourZoom}
             onSelectProgram={selectProgram}
             onSelectChannel={selectChannel}
           />
@@ -694,25 +710,22 @@ export function GuideView() {
   // h-full ではなく flex-1 だけで高さをつなぐ (h-full は親の高さ確定に依存し崩れやすい)。
   return (
     <div ref={pageRef} className="flex min-h-0 flex-1 flex-col bg-background">
-      {/* モバイル・タブレットでは番組表ページの主役は表そのものなので、タイトル・日付・
-          放送波・設定・更新を 1 行に収める最小限のツールバーにして、残りの縦幅をできるだけ
-          番組表に譲る。PC (lg 以上) は幅にも高さにも余裕があるので、元の見出し・独立した
-          フィルターカードの形に戻す。 */}
-      <div className="shrink-0 overflow-x-hidden overflow-y-auto px-3 pt-3 sm:px-4 lg:px-6 lg:pt-8">
-        <div className="mb-2 flex flex-wrap items-center gap-2 lg:hidden">
-          <h1 className="mr-auto text-lg font-bold tracking-tight">番組表</h1>
+      <div className="shrink-0 px-3 pt-3 sm:px-4 lg:px-6 lg:pt-6">
+        <h1 className="mb-2 text-[2rem] leading-[1.1] font-bold tracking-tight lg:hidden">番組表</h1>
+        {/* モバイルの条件と操作は、見出しの次の行にある 1 つのボタンエリアへまとめる。 */}
+        <div className="glass-panel mb-2 flex flex-nowrap items-center gap-1 overflow-x-auto rounded-xl p-2 shadow-sm lg:hidden">
           <select
             id="guide-date"
             aria-label="放送日"
             value={date}
             onChange={(event) => setDate(event.target.value)}
-            className="h-9 min-w-0 max-w-full rounded-lg border border-input bg-background/75 px-2 text-sm shadow-xs"
+            className="h-9 w-auto shrink-0 rounded-lg border border-input bg-background/75 px-2 text-sm shadow-xs"
           >
             {dateOptions.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
-          <div role="group" aria-label="放送波" className="flex gap-1 rounded-lg bg-muted p-1">
+          <div role="group" aria-label="放送波" className="flex shrink-0 gap-1 rounded-lg bg-muted p-1">
             {filters.map((filter) => (
               <Button
                 key={filter.value}
@@ -731,20 +744,30 @@ export function GuideView() {
               <Settings aria-hidden="true" />
             </Link>
           </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant={hasActiveHourZooms ? "default" : "outline"}
+            className="flex-col gap-0 text-[0.6rem] leading-none"
+            aria-label={hasActiveHourZooms ? "有効な時間帯の拡大をすべて解除" : "時間帯の拡大はありません"}
+            disabled={!hasActiveHourZooms}
+            onClick={() => setShowResetZoomsDialog(true)}
+          >
+            <ArrowUpDown aria-hidden="true" />
+            <span>拡大</span>
+          </Button>
           <Button type="button" variant="ghost" size="icon" aria-label="更新" onClick={resource.revalidate} disabled={resource.isRefreshing}>
             <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
           </Button>
-          {isFullscreenSupported ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={isFullscreen ? "全画面表示を終了" : "全画面表示"}
-              onClick={toggleFullscreen}
-            >
-              {isFullscreen ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
-            </Button>
-          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={isFullscreenView ? "全画面表示を終了" : "全画面表示"}
+            onClick={requestFullscreen}
+          >
+            {isFullscreenView ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+          </Button>
         </div>
 
         <div className="hidden lg:block">
@@ -752,24 +775,9 @@ export function GuideView() {
             eyebrow="Program guide"
             title="番組表"
             description="チャンネルを横に、放送予定を時刻順に表示します。日付と放送波を選んで絞り込めます。"
-            actions={
-              <>
-                <Button asChild variant="ghost"><Link href="/guide/setting"><Settings aria-hidden="true" />番組表設定</Link></Button>
-                <Button type="button" variant="ghost" onClick={resource.revalidate} disabled={resource.isRefreshing}>
-                  <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
-                  更新
-                </Button>
-                {isFullscreenSupported ? (
-                  <Button type="button" variant="ghost" onClick={toggleFullscreen}>
-                    {isFullscreen ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
-                    {isFullscreen ? "全画面表示を終了" : "全画面表示"}
-                  </Button>
-                ) : null}
-              </>
-            }
           />
 
-          <div className="mb-5 flex flex-col gap-4 glass-panel rounded-2xl p-4 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+          <div className="mb-5 flex flex-wrap items-end gap-4 glass-panel rounded-2xl p-4 shadow-sm">
             <div className="w-full sm:max-w-52">
               <label htmlFor="guide-date-desktop" className="mb-2 flex items-center gap-2 text-sm font-semibold">
                 <CalendarDays aria-hidden="true" className="size-4 text-primary" />
@@ -806,6 +814,25 @@ export function GuideView() {
                 ))}
               </div>
             </fieldset>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild variant="ghost"><Link href="/guide/setting"><Settings aria-hidden="true" />番組表設定</Link></Button>
+              <Button
+                type="button"
+                variant={hasActiveHourZooms ? "default" : "outline"}
+                disabled={!hasActiveHourZooms}
+                onClick={() => setShowResetZoomsDialog(true)}
+              >
+                <ArrowUpDown aria-hidden="true" />拡大
+              </Button>
+              <Button type="button" variant="ghost" onClick={resource.revalidate} disabled={resource.isRefreshing}>
+                <RefreshCw aria-hidden="true" className={resource.isRefreshing ? "animate-spin" : undefined} />
+                更新
+              </Button>
+              <Button type="button" variant="ghost" onClick={requestFullscreen}>
+                {isFullscreenView ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+                {isFullscreenView ? "全画面表示を終了" : "全画面表示"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -830,6 +857,17 @@ export function GuideView() {
       {resource.data ? (
         <WatchNowDialog channel={watchChannel} config={resource.data.config} onClose={() => setWatchChannel(null)} />
       ) : null}
+      <ConfirmDialog
+        open={showResetZoomsDialog}
+        title="すべての拡大を解除しますか？"
+        description="時間帯ごとに設定した拡大をすべて解除し、番組表を標準の高さに戻します。"
+        confirmLabel="すべて解除"
+        onConfirm={() => {
+          setHourZooms({});
+          setShowResetZoomsDialog(false);
+        }}
+        onCancel={() => setShowResetZoomsDialog(false)}
+      />
     </div>
   );
 }

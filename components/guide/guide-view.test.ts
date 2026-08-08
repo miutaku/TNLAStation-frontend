@@ -86,11 +86,29 @@ describe("guideYForMinute", () => {
     const source = readFileSync(new URL("./guide-view.tsx", import.meta.url), "utf8");
 
     expect(source).toContain('"sticky left-0 z-30 w-14 shrink-0');
-    expect(source).toContain("拡大を解除");
-    expect(source).toContain('aria-label="時間帯ごとの拡大をすべて解除"');
+    expect(source).toContain("すべての拡大を解除しますか？");
+    expect(source).toContain("時間帯ごとに設定した拡大をすべて解除し、番組表を標準の高さに戻します。");
     expect(source).toContain("<ArrowUpDown");
     expect(source).toContain("size-8");
     expect(source).toContain("GUIDE_HOUR_ZOOM_LEVELS = [1, 2, 4, 8, 16]");
+  });
+
+  it("groups mobile filters and display controls below the title", () => {
+    const source = readFileSync(new URL("./guide-view.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain('className="mb-2 text-[2rem] leading-[1.1] font-bold tracking-tight lg:hidden"');
+    expect(source).toContain("glass-panel mb-2 flex flex-nowrap items-center gap-1 overflow-x-auto");
+    expect(source).toContain('role="group" aria-label="放送波"');
+    expect(source).toContain('aria-label="放送波"');
+    expect(source).toContain("モバイルの条件と操作は、見出しの次の行");
+    expect(source).toContain('className="flex-col gap-0 text-[0.6rem] leading-none"');
+    expect(source).toContain('<span>拡大</span>');
+    expect(source).toContain('variant={hasActiveHourZooms ? "default" : "outline"}');
+    expect(source).not.toContain('variant={hasActiveHourZooms ? "default" : "ghost"}');
+    expect(source).not.toContain("rounded-full bg-destructive");
+    expect(source).not.toContain("全画面表示を利用できません");
+    expect(source).toContain('classList.toggle("guide-bottom-ui-hidden", isBottomUiHidden)');
+    expect(source).toContain('disabled={!hasActiveHourZooms}');
   });
 
   it("provides enough zoom for two-minute programs to show their title", () => {
