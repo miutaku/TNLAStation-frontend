@@ -126,7 +126,6 @@ describe("guideYForMinute", () => {
     expect(source).toContain('<span className="hidden lg:inline">{isFullscreenView ? "全画面表示を終了" : "全画面表示"}</span>');
     expect(source).toContain('disabled={!hasActiveHourZooms}');
   });
-
   it("provides enough zoom for two-minute programs to show their title", () => {
     const top = guideYForMinute(50, 3, { 0: 8 });
     const bottom = guideYForMinute(52, 3, { 0: 8 });
