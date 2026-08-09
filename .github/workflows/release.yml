@@ -97,6 +97,12 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      - name: Checkout release
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
       - name: Checkout release tooling
         uses: actions/checkout@v6
         with:
