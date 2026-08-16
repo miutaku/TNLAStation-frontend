@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ChevronDown, CircleStop, Cpu, Download, Film, HardDrive, Image as ImageIcon, LockKeyhole, Play, RadioTower, ShieldOff, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, CircleStop, Cpu, Download, Film, HardDrive, Image as ImageIcon, LockKeyhole, ShieldOff, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState, type FormEvent } from "react";
@@ -9,6 +9,7 @@ import { ContentSkeleton, EmptyState, ErrorState } from "@/components/async-stat
 import { PageHeader } from "@/components/page-header";
 import { RecordedTagEditor } from "@/components/recorded/recorded-tags";
 import { RecordedThumbnail } from "@/components/recorded/recorded-thumbnail";
+import { RecordedPlayButton } from "@/components/recorded/recorded-play-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,10 +34,8 @@ const controlClassName = "h-10 min-w-0 w-full max-w-full rounded-lg border borde
  * 元の TS は MPEG-2 で、ブラウザーはそのままでは再生できない。押しても何も起きない
  * ボタンを置くより、変換して再生するほうへ寄せる。
  */
-function VideoFileCard({ file, recordedId }: { file: VideoFile; recordedId: number }) {
+function VideoFileCard({ file, recorded }: { file: VideoFile; recorded: RecordedItem }) {
   const playsInBrowser = file.type !== "ts";
-  const directHref = `/recorded/watch?videoId=${file.id}&recordedId=${recordedId}`;
-  const convertedHref = `/recorded/streaming/${file.id}?recordedId=${recordedId}&streamingType=hls&mode=0`;
 
   return (
     <Card>
@@ -57,14 +56,7 @@ function VideoFileCard({ file, recordedId }: { file: VideoFile; recordedId: numb
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2 border-t pt-4">
-            <Button asChild size="sm">
-              <Link href={playsInBrowser ? directHref : convertedHref}><Play aria-hidden="true" />再生</Link>
-            </Button>
-            {playsInBrowser ? (
-              <Button asChild size="sm" variant="ghost">
-                <Link href={convertedHref}><RadioTower aria-hidden="true" />変換して再生</Link>
-              </Button>
-            ) : null}
+            <RecordedPlayButton item={recorded} onlyFile={file} />
             <Button asChild size="sm" variant="ghost">
               <a href={apiClient.videoUrl(file.id, true)} download><Download aria-hidden="true" />ダウンロード</a>
             </Button>
@@ -272,7 +264,7 @@ export function RecordedDetailView({ recordedId }: { recordedId: number }) {
             {files.length === 0 ? <EmptyState title="録画ファイルがありません" description="録画情報はありますが、再生できるファイルは登録されていません。" /> : (
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {files.map((file: VideoFile) => (
-                  <VideoFileCard key={file.id} file={file} recordedId={recorded.id} />
+                  <VideoFileCard key={file.id} file={file} recorded={recorded} />
                 ))}
               </div>
             )}
