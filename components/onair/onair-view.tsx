@@ -13,6 +13,7 @@ import {
 } from "@/components/collection-view";
 import { ProgramReserveDialog } from "@/components/guide/program-reserve-dialog";
 import { WatchNowDialog } from "@/components/onair/watch-now-dialog";
+import { StreamClientsDialog } from "@/components/onair/stream-clients-dialog";
 import { PageHeader } from "@/components/page-header";
 import {
   TableColumnVisibilityMenu,
@@ -388,6 +389,7 @@ export function OnAirView() {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [reserveTarget, setReserveTarget] = useState<{ program: ScheduleProgramItem; channelName: string } | null>(null);
   const [watchChannel, setWatchChannel] = useState<{ id: number; name: string } | null>(null);
+  const [streamDialog, setStreamDialog] = useState<"live" | "recorded" | null>(null);
   const { preferences } = usePreferences();
   const [viewMode, setViewMode] = useCollectionViewMode("onair");
   const tableColumns = useTableColumnVisibility("onair", onAirTableColumns);
@@ -433,6 +435,10 @@ export function OnAirView() {
     () => resource.data?.streams.items.filter(isLiveStream) ?? [],
     [resource.data?.streams.items],
   );
+  const recordedStreams = useMemo(
+    () => resource.data?.streams.items.filter((stream) => stream.type === "RecordedStream" || stream.type === "RecordedHLS") ?? [],
+    [resource.data?.streams.items],
+  );
   const streamsByChannel = useMemo(() => new Map(liveStreams.map((stream) => [stream.channelId, stream])), [liveStreams]);
   // 受信できる放送波だけ出す。使えない選択肢を並べても押せば空になるだけ。
   const availableTypes = useMemo(
@@ -476,7 +482,6 @@ export function OnAirView() {
     [broadcast, resource.data?.channels],
   );
   const channelGroups = useMemo(() => groupOnAirChannels(channels), [channels]);
-  const recordedStreamCount = resource.data?.streams.items.filter((stream) => stream.type === "RecordedStream" || stream.type === "RecordedHLS").length ?? 0;
 
   return (
     <>
@@ -492,9 +497,9 @@ export function OnAirView() {
       />
 
       <div className="mb-5 flex flex-col gap-3 glass-panel rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between">
-        <fieldset>
+        <fieldset className="w-fit max-w-full">
           <legend className="sr-only">放送波で絞り込む</legend>
-          <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-muted p-1">
+          <div className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-lg bg-muted p-1">
             {broadcastFilters.map((type) => (
               <Button
                 key={type}
@@ -512,8 +517,12 @@ export function OnAirView() {
         <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
           {resource.data ? (
             <>
-              <Badge variant="success"><Activity aria-hidden="true" />ライブ {liveStreams.length}</Badge>
-              <Badge variant="outline">録画再生 {recordedStreamCount}</Badge>
+              <Button type="button" variant="outline" size="sm" onClick={() => setStreamDialog("live")}>
+                <Activity aria-hidden="true" />ライブ {liveStreams.length}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setStreamDialog("recorded")}>
+                録画再生 {recordedStreams.length}
+              </Button>
             </>
           ) : null}
           {viewMode === "list" ? <TableColumnVisibilityMenu state={tableColumns} label="放送中一覧の列" /> : null}
@@ -598,6 +607,12 @@ export function OnAirView() {
       {resource.data ? (
         <WatchNowDialog channel={watchChannel} config={resource.data.config} onClose={() => setWatchChannel(null)} />
       ) : null}
+      <StreamClientsDialog
+        open={streamDialog !== null}
+        title={streamDialog === "recorded" ? "録画再生中のクライアント" : "ライブ再生中のクライアント"}
+        streams={streamDialog === "recorded" ? recordedStreams : liveStreams}
+        onClose={() => setStreamDialog(null)}
+      />
     </>
   );
 }

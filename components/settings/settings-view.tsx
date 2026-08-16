@@ -11,7 +11,7 @@ import { GlassOpacitySettings } from "@/components/settings/glass-opacity-settin
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { displayVersion, frontendVersion } from "@/lib/app-version";
+import { displayBackendVersion, displayVersion, frontendVersion } from "@/lib/app-version";
 import { apiClient } from "@/lib/api/client";
 import type { VersionInfo } from "@/lib/api/types";
 import { useApiResource } from "@/lib/hooks/use-api-resource";
@@ -79,6 +79,12 @@ function SelectRow<T extends string | number>({
   );
 }
 
+function versionLabel(version: VersionInfo | null, isLoading: boolean): string {
+  if (!version) return isLoading ? "取得中…" : "取得できません";
+  if (version.backend !== "tnlastation") return displayVersion(version.backendVersion);
+  return displayBackendVersion(version.backendVersion);
+}
+
 export function SettingsView() {
   const { preferences, updatePreferences, resetPreferences } = usePreferences();
   const loadVersion = useCallback(
@@ -94,11 +100,7 @@ export function SettingsView() {
     : version.data?.backend === "other"
       ? "その他の互換バックエンド"
       : "Backend";
-  const backendVersionLabel = version.data
-    ? displayVersion(version.data.backendVersion)
-    : version.isLoading
-      ? "取得中…"
-      : "取得できません";
+  const backendVersionLabel = versionLabel(version.data, version.isLoading);
 
   return (
     <>
@@ -300,7 +302,7 @@ export function SettingsView() {
           </CardHeader>
           <CardContent className="divide-y pt-5 sm:pt-6">
             <div className="flex items-center justify-between gap-4 pb-4">
-              <span className="text-sm font-semibold">Frontend</span>
+              <span className="text-sm font-semibold">TNLAStation Frontend</span>
               <span className="font-mono text-sm text-muted-foreground">{displayVersion(frontendVersion)}</span>
             </div>
             <div className="flex items-center justify-between gap-4 pt-4">
