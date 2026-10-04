@@ -48,6 +48,7 @@ NEXT_PUBLIC_TNLA_API_BASE=https://backend.example.com/api npm run dev
 ## ドキュメント
 
 - [ドキュメント一覧](docs/README.md)
+- [GitHub Pagesでデモを公開](docs/github-pages-demo.md)
 - [セットアップ](docs/setup.md)
 - [バックエンド接続](docs/backend-connection.md)
 - [画面と表示設定](docs/user-interface.md)

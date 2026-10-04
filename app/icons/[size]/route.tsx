@@ -1,6 +1,12 @@
 import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
 
+export const dynamic = "force-static";
+
+export function generateStaticParams() {
+  return [{ size: "192" }, { size: "512" }];
+}
+
 /**
  * PWA マニフェスト用のアイコンを、必要なサイズごとに動的に生成する。バイナリの画像
  * ファイルを用意する代わりに、app-shell.tsx の Brand (角丸の正方形 + Tv アイコン) と

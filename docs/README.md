@@ -14,6 +14,7 @@ EPGStationのようにREADMEを概要と入口に留め、導入・設定・内�
 
 | ドキュメント | 内容 |
 | --- | --- |
+| [GitHub Pagesデモ公開](github-pages-demo.md) | 静的デモの確認、GitHub Actions、Pages設定 |
 | [アーキテクチャ](architecture.md) | App Router、コンポーネント、API client、品質確認 |
 | [コントリビューション](../CONTRIBUTING.md) | 開発手順とPull Requestの方針 |
 | [リリース](../RELEASING.md) | リリースブランチ、検証、タグ、公開 |

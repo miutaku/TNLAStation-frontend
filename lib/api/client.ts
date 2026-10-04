@@ -1,4 +1,6 @@
 import type { ThumbnailTarget } from "@/lib/recorded-thumbnail";
+import { demoFetch } from "@/lib/api/demo";
+import { withBasePath } from "@/lib/base-path";
 import type {
   AddManualEncodeProgramOptions,
   AddRuleOptions,
@@ -40,6 +42,9 @@ import type {
 export type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type QueryValue = string | number | boolean | readonly (string | number | boolean)[] | null | undefined;
 type Query = Record<string, QueryValue>;
+
+const isDemo = process.env.NEXT_PUBLIC_TNLASTATION_DEMO === "1";
+const defaultFetcher: Fetcher = isDemo ? demoFetch : globalThis.fetch.bind(globalThis);
 
 export class ApiError extends Error {
   readonly status: number;
@@ -104,7 +109,7 @@ export class EpgStationApiClient {
 
   constructor({
     baseUrl = process.env.NEXT_PUBLIC_TNLA_API_BASE ?? "/api",
-    fetcher = globalThis.fetch.bind(globalThis),
+    fetcher = defaultFetcher,
   }: { baseUrl?: string; fetcher?: Fetcher } = {}) {
     this.baseUrl = normalizeBaseUrl(baseUrl);
     this.fetcher = fetcher;
@@ -310,6 +315,7 @@ export class EpgStationApiClient {
   }
 
   swaggerUrl(): string {
+    if (isDemo) return "https://github.com/miutaku/TNLAStation-frontend";
     return swaggerUrlFromApiBase(this.baseUrl);
   }
 
@@ -382,10 +388,12 @@ export class EpgStationApiClient {
   }
 
   thumbnailUrl(thumbnailId: ThumbnailId): string {
+    if (isDemo) return withBasePath("/demo/thumbnail.svg");
     return `${this.baseUrl}/thumbnails/${thumbnailId}`;
   }
 
   channelLogoUrl(channelId: number): string {
+    if (isDemo) return withBasePath("/demo/channel-logo.svg");
     return `${this.baseUrl}/channels/${channelId}/logo`;
   }
 

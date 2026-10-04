@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
-import { parseRuleCreateDraft } from "@/components/rules/rule-create-draft";
-import { RuleCreateView } from "@/components/rules/rule-editor-view";
+import { ContentSkeleton } from "@/components/async-state";
+import { RuleCreateRoute } from "@/components/rules/rule-create-route";
 
 export const metadata: Metadata = { title: "録画ルールを作成" };
 
-export default async function NewRulePage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const params = await searchParams;
-  const initialDraft = parseRuleCreateDraft(params.name, params.option);
-  return <RuleCreateView initialDraft={initialDraft} />;
+export default function NewRulePage() {
+  return (
+    <Suspense fallback={<ContentSkeleton cards={1} />}>
+      <RuleCreateRoute />
+    </Suspense>
+  );
 }

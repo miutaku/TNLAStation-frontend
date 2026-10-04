@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:demo": "TNLASTATION_DEMO=1 NEXT_PUBLIC_TNLASTATION_DEMO=1 next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

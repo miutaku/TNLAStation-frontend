@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
+import { withBasePath } from "@/lib/base-path";
 import { DEFAULT_ACCENT_HUE, PREFERENCES_STORAGE_KEY } from "@/lib/preferences";
 
 import "./globals.css";
@@ -48,7 +49,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="ja" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: noFlashAccentHueScript }} />
-        <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />
+        <link rel="manifest" href={withBasePath("/manifest.webmanifest")} crossOrigin="use-credentials" />
       </head>
       <body>
         <ServiceWorkerRegistration />

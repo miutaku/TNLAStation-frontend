@@ -5,6 +5,10 @@ import { RecordedDetailView } from "@/components/recorded/recorded-detail-view";
 
 export const metadata: Metadata = { title: "録画詳細" };
 
+export function generateStaticParams() {
+  return [{ id: "202" }, { id: "203" }];
+}
+
 export default async function RecordedDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const recordedId = Number(id);

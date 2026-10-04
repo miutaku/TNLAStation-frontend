@@ -5,6 +5,10 @@ import { ReserveEditView } from "@/components/reserves/reserve-editor-view";
 
 export const metadata: Metadata = { title: "予約を編集" };
 
+export function generateStaticParams() {
+  return [{ id: "701" }, { id: "702" }];
+}
+
 export default async function EditReservePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const reserveId = Number(id);

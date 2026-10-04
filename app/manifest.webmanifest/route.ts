@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+import { withBasePath } from "@/lib/base-path";
+
 /**
  * Web App Manifest。app/manifest.ts (ファイル規約) を使うと Next.js が
  * <link rel="manifest"> を crossorigin なしで出力するが、仕様上その fetch は
@@ -12,15 +14,15 @@ const manifest: MetadataRoute.Manifest = {
   name: "TNLAStation",
   short_name: "TNLAStation",
   description: "TNLAStation recording dashboard",
-  id: "/",
-  start_url: "/",
-  scope: "/",
+  id: withBasePath("/"),
+  start_url: withBasePath("/"),
+  scope: withBasePath("/"),
   display: "standalone",
   background_color: "#f6f7fb",
   theme_color: "#f6f7fb",
   icons: [
-    { src: "/icons/192", sizes: "192x192", type: "image/png", purpose: "any" },
-    { src: "/icons/512", sizes: "512x512", type: "image/png", purpose: "any" },
+    { src: withBasePath("/icons/192"), sizes: "192x192", type: "image/png", purpose: "any" },
+    { src: withBasePath("/icons/512"), sizes: "512x512", type: "image/png", purpose: "any" },
   ],
 };
 

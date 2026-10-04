@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="TNLAStation Demo">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#17233d"/>
+      <stop offset="1" stop-color="#e6365f"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#background)"/>
+  <circle cx="320" cy="155" r="58" fill="#fff" fill-opacity=".16"/>
+  <path d="m300 119 67 36-67 37Z" fill="#fff"/>
+  <text x="320" y="281" text-anchor="middle" font-family="system-ui,sans-serif" font-size="31" font-weight="700" fill="#fff">TNLAStation Demo</text>
+</svg>
