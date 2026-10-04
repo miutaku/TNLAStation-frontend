@@ -14,19 +14,12 @@ import { cn } from "@/lib/utils";
 import { isViewportLockedRoute } from "@/lib/viewport-lock";
 
 function Brand() {
-  const isDemo = process.env.NEXT_PUBLIC_TNLASTATION_DEMO === "1";
-
   return (
     <Link href="/" className="group flex items-center gap-2.5 px-2 py-1">
       <span className="grid size-9 place-items-center rounded-[0.65rem] bg-primary text-primary-foreground">
         <Tv aria-hidden="true" className="size-5" strokeWidth={2.2} />
       </span>
       <span className="block text-[1.05rem] font-semibold tracking-tight">TNLAStation</span>
-      {isDemo ? (
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[0.65rem] font-bold tracking-[0.12em] text-primary">
-          DEMO
-        </span>
-      ) : null}
     </Link>
   );
 }
