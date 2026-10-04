@@ -9,6 +9,12 @@ EPGStation互換Web APIを利用する、TNLAStationのモバイルフレンド�
 [TNLAStation Backend](https://github.com/miutaku/TNLAStation-backend)を標準の接続先とし、
 iOS、Android、PCから録画サーバーを操作できます。
 
+## デモ
+
+https://miutaku.github.io/TNLAStation-frontend/
+
+サンプルデータを使って、バックエンドなしで主な画面と操作を試せます。
+
 ## 主な機能
 
 - 予約・録画状況をまとめるダッシュボード
