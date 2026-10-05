@@ -55,7 +55,7 @@ export function AccentColorSettings({
 }) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+      <div className="flex flex-wrap gap-2">
         {ACCENT_PRESETS.map((preset) => {
           const selected = Math.abs(preset.hue - value) < 6;
           return (
@@ -67,7 +67,7 @@ export function AccentColorSettings({
               title={preset.label}
               onClick={() => onChange(preset.hue)}
               className={cn(
-                "grid aspect-square place-items-center rounded-full border-2 transition-transform",
+                "grid size-10 shrink-0 place-items-center rounded-full border-2 transition-transform",
                 selected ? "border-foreground scale-110" : "border-transparent hover:scale-105",
               )}
             >
