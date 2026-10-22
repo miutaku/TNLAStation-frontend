@@ -85,4 +85,4 @@ jobs:
           push: false
           tags: tnlastation-frontend:ci
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,ignore-error=true,mode=max
