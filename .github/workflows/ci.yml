@@ -48,7 +48,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=moderate
 
       - name: Audit development dependencies
-        run: node .github/scripts/audit-dependencies.cjs
+        run: node .github/scripts/audit-dependencies.mjs
 
       - name: Lint
         run: npm run lint

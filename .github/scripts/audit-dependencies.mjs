@@ -1,5 +1,5 @@
-const { spawnSync } = require("node:child_process");
-const { readFileSync } = require("node:fs");
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const result = spawnSync("npm", ["audit", "--json"], { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
 if (result.error) throw result.error;
